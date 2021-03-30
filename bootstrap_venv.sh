@@ -16,7 +16,7 @@ function install()
   fi
 
   # install sympl and required dependencies
-  pip install .
+  pip install -e .
 
   # install development packages
   pip install -r requirements_dev.txt
@@ -28,6 +28,9 @@ function install()
       cp /tmp/.matplotlibrc $VENV/lib/$PYTHON/site-packages/matplotlib/mpl-data/matplotlibrc && \
       rm /tmp/.matplotlibrc
   fi
+
+  # install pre-commit hooks
+  pre-commit install
 
   # deactivate environment
   deactivate
