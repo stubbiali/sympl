@@ -1,14 +1,16 @@
-from .._core.base_components import Monitor
-from .._core.exceptions import (
-    DependencyError, InvalidStateError)
-from .._core.units import from_unit_to_another
-from .._core.dataarray import DataArray
-from .._core.util import same_list, datetime64_to_datetime
-import xarray as xr
+# -*- coding: utf-8 -*-
 import os
-import numpy as np
 from datetime import timedelta
+
+import numpy as np
+import xarray as xr
 from six import string_types
+
+from .._core.base_components import Monitor
+from .._core.dataarray import DataArray
+from .._core.exceptions import DependencyError, InvalidStateError
+from .._core.units import from_unit_to_another
+from .._core.util import datetime64_to_datetime, same_list
 
 try:
     import netCDF4 as nc4
@@ -21,8 +23,13 @@ class NetCDFMonitor(Monitor):
     NetCDF file when requested."""
 
     def __init__(
-            self, filename, time_units='seconds', store_names=None,
-            write_on_store=False, aliases=None):
+        self,
+        filename,
+        time_units="seconds",
+        store_names=None,
+        write_on_store=False,
+        aliases=None,
+    ):
         """
         Args
         ----
@@ -46,7 +53,8 @@ class NetCDFMonitor(Monitor):
         """
         if nc4 is None:
             raise DependencyError(
-                'netCDF4-python must be installed to use NetCDFMonitor')
+                "netCDF4-python must be installed to use NetCDFMonitor"
+            )
         self._cached_state_dict = {}
         self._filename = filename
         self._time_units = time_units
@@ -57,13 +65,21 @@ class NetCDFMonitor(Monitor):
             self._aliases = aliases
         for key, val in self._aliases.items():
             if not isinstance(key, string_types):
-                raise TypeError("Bad alias key type: {}. Expected string.".format(type(key)))
+                raise TypeError(
+                    "Bad alias key type: {}. Expected string.".format(
+                        type(key)
+                    )
+                )
             elif not isinstance(val, string_types):
-                raise TypeError("Bad alias value type: {}. Expected string.".format(type(val)))
+                raise TypeError(
+                    "Bad alias value type: {}. Expected string.".format(
+                        type(val)
+                    )
+                )
         if store_names is None:
             self._store_names = None
         else:
-            self._store_names = ['time'] + list(store_names)
+            self._store_names = ["time"] + list(store_names)
 
     def store(self, state):
         """
@@ -90,7 +106,9 @@ class NetCDFMonitor(Monitor):
         # raise an exception if the state has any empty string variables
         for full_var_name in cache_state.keys():
             if len(full_var_name) == 0:
-                raise ValueError('The given state has an empty string as a variable name.')
+                raise ValueError(
+                    "The given state has an empty string as a variable name."
+                )
 
         # replace cached variable names with their aliases
         for longname, shortname in self._aliases.items():
@@ -101,31 +119,35 @@ class NetCDFMonitor(Monitor):
                 #    alias_name for the variable would be: "T_tendency_from_radiation"
                 if longname in full_var_name:
                     alias_name = full_var_name.replace(longname, shortname)
-                    if len(alias_name) == 0:  # raise exception if the alias is an empty str
-                        errstr = 'Tried to alias variable "{}" to an empty string.\n' + \
-                                 'xarray will not allow empty strings as variable names.'
+                    if (
+                        len(alias_name) == 0
+                    ):  # raise exception if the alias is an empty str
+                        errstr = (
+                            'Tried to alias variable "{}" to an empty string.\n'
+                            + "xarray will not allow empty strings as variable names."
+                        )
                         raise ValueError(errstr.format(full_var_name))
                     cache_state[alias_name] = cache_state.pop(full_var_name)
 
-        cache_state.pop('time')  # stored as key, not needed in state dict
-        if state['time'] in self._cached_state_dict.keys():
-            self._cached_state_dict[state['time']].update(cache_state)
+        cache_state.pop("time")  # stored as key, not needed in state dict
+        if state["time"] in self._cached_state_dict.keys():
+            self._cached_state_dict[state["time"]].update(cache_state)
         else:
-            self._cached_state_dict[state['time']] = cache_state
+            self._cached_state_dict[state["time"]] = cache_state
         if self._write_on_store:
             self.write()
 
     @property
     def _write_mode(self):
         if not os.path.isfile(self._filename):
-            return 'w'
+            return "w"
         else:
-            return 'a'
+            return "a"
 
     def _ensure_cached_state_keys_compatible_with_dataset(self, dataset):
         file_keys = list(dataset.variables.keys())
-        if 'time' in file_keys:
-            file_keys.remove('time')
+        if "time" in file_keys:
+            file_keys.remove("time")
         if len(file_keys) > 0:
             self._ensure_cached_states_have_same_keys(file_keys)
         else:
@@ -152,13 +174,17 @@ class NetCDFMonitor(Monitor):
         for state in self._cached_state_dict.values():
             if not same_list(list(state.keys()), list(reference_keys)):
                 raise InvalidStateError(
-                    'NetCDFMonitor was passed a different set of '
-                    'quantities for different times: {} vs. {}'.format(
-                        list(reference_keys), list(state.keys())))
+                    "NetCDFMonitor was passed a different set of "
+                    "quantities for different times: {} vs. {}".format(
+                        list(reference_keys), list(state.keys())
+                    )
+                )
 
     def _get_ordered_times_and_states(self):
         """Returns the items in self._cached_state_dict, sorted by time."""
-        return zip(*sorted(self._cached_state_dict.items(), key=lambda x: x[0]))
+        return zip(
+            *sorted(self._cached_state_dict.items(), key=lambda x: x[0])
+        )
 
     def write(self):
         """
@@ -175,31 +201,35 @@ class NetCDFMonitor(Monitor):
             self._ensure_cached_state_keys_compatible_with_dataset(dataset)
             time_list, state_list = self._get_ordered_times_and_states()
             self._ensure_time_exists(dataset, time_list[0])
-            it_start = dataset.dimensions['time'].size
+            it_start = dataset.dimensions["time"].size
             it_end = it_start + len(time_list)
             append_times_to_dataset(time_list, dataset, self._time_units)
             all_states = combine_states(state_list)
             for name, value in all_states.items():
                 ensure_variable_exists(dataset, name, value)
-                dataset.variables[name][
-                    it_start:it_end, :] = value.values[:, :]
+                dataset.variables[name][it_start:it_end, :] = value.values[
+                    :, :
+                ]
         self._cached_state_dict = {}
 
     def _ensure_time_exists(self, dataset, possible_reference_time):
         """Ensure an unlimited time dimension relevant to this monitor
         exists in the NetCDF4 dataset, and create it if it does not."""
-        ensure_dimension_exists(dataset, 'time', None)
-        if 'time' not in dataset.variables:
-            dataset.createVariable('time', np.int64, ('time',))
+        ensure_dimension_exists(dataset, "time", None)
+        if "time" not in dataset.variables:
+            dataset.createVariable("time", np.int64, ("time",))
             if isinstance(possible_reference_time, timedelta):
-                dataset.variables['time'].setncattr(
-                    'units', self._time_units)
+                dataset.variables["time"].setncattr("units", self._time_units)
             else:  # assume datetime
-                dataset.variables['time'].setncattr(
-                    'units', '{} since {}'.format(
-                        self._time_units, possible_reference_time))
-                dataset.variables['time'].setncattr(
-                    'calendar', 'proleptic_gregorian')
+                dataset.variables["time"].setncattr(
+                    "units",
+                    "{} since {}".format(
+                        self._time_units, possible_reference_time
+                    ),
+                )
+                dataset.variables["time"].setncattr(
+                    "calendar", "proleptic_gregorian"
+                )
 
 
 class RestartMonitor(Monitor):
@@ -211,7 +241,8 @@ class RestartMonitor(Monitor):
     def __init__(self, filename):
         if nc4 is None:
             raise DependencyError(
-                'netCDF4-python must be installed to use RestartMonitor')
+                "netCDF4-python must be installed to use RestartMonitor"
+            )
         self._filename = filename
 
     def store(self, state):
@@ -224,18 +255,18 @@ class RestartMonitor(Monitor):
         state : dict
             A model state dictionary.
         """
-        new_filename = self._filename + '.new'
+        new_filename = self._filename + ".new"
         if os.path.isfile(new_filename):
-            raise IOError('Filename {} already exists'.format(new_filename))
+            raise IOError("Filename {} already exists".format(new_filename))
         netcdf_monitor = NetCDFMonitor(new_filename)
         netcdf_monitor.store(state)
         netcdf_monitor.write()
 
         if os.path.isfile(self._filename):
-            os.rename(self._filename, self._filename + '.old')
+            os.rename(self._filename, self._filename + ".old")
         os.rename(new_filename, self._filename)
-        if os.path.isfile(self._filename + '.old'):
-            os.remove(self._filename + '.old')
+        if os.path.isfile(self._filename + ".old"):
+            os.remove(self._filename + ".old")
 
     def load(self):
         """
@@ -250,26 +281,28 @@ class RestartMonitor(Monitor):
         state = {}
         for name, value in dataset.data_vars.items():
             state[name] = DataArray(value[0, :])  # remove time axis
-        state['time'] = datetime64_to_datetime(dataset['time'][0])
+        state["time"] = datetime64_to_datetime(dataset["time"][0])
         return state
 
 
 def append_times_to_dataset(times, dataset, time_units):
     """Appends the given list of times to the dataset. Assumes the time units
     in the NetCDF4 dataset correspond to the string time_units."""
-    it_start = dataset.dimensions['time'].size
+    it_start = dataset.dimensions["time"].size
     it_end = it_start + len(times)
     if isinstance(times[0], timedelta):
         times_list = []
         for time in times:
             times_list.append(time.total_seconds())
         time_array = from_unit_to_another(
-            np.array(times_list), 'seconds', time_units)
-        dataset.variables['time'][it_start:it_end] = time_array[:]
+            np.array(times_list), "seconds", time_units
+        )
+        dataset.variables["time"][it_start:it_end] = time_array[:]
     else:  # assume datetime
-        dataset.variables['time'][it_start:it_end] = nc4.date2num(
-            times, dataset.variables['time'].units,
-            calendar='proleptic_gregorian'
+        dataset.variables["time"][it_start:it_end] = nc4.date2num(
+            times,
+            dataset.variables["time"].units,
+            calendar="proleptic_gregorian",
         )
 
 
@@ -283,7 +316,9 @@ def combine_states(states):
     for name, value in states[0].items():
         return_dict[name] = DataArray(
             np.zeros((n_states,) + value.shape, dtype=value.values.dtype),
-            dims=('time',) + value.dims, attrs=value.attrs)
+            dims=("time",) + value.dims,
+            attrs=value.attrs,
+        )
     for i, state in enumerate(states):
         for name in state.keys():
             return_dict[name][i, :] = state[name][:]
@@ -308,38 +343,40 @@ def create_variable(dataset, name, data):
         for i in range(len(data.dims)):
             try:
                 if i == 0:  # time
-                    ensure_dimension_exists(
-                        dataset, data.dims[i], None)
+                    ensure_dimension_exists(dataset, data.dims[i], None)
                 else:
                     ensure_dimension_exists(
-                        dataset, data.dims[i], data.values.shape[i])
+                        dataset, data.dims[i], data.values.shape[i]
+                    )
             except IOError as err:
-                raise IOError(
-                    'Error while creating {}: {}'.format(name, err))
-        dataset.createVariable(
-            name, data.values.dtype, data.dims)
+                raise IOError("Error while creating {}: {}".format(name, err))
+        dataset.createVariable(name, data.values.dtype, data.dims)
         for key, value in data.attrs.items():
             dataset.variables[name].setncattr(key, value)
     else:
-        raise TypeError('data must be of type DataArray')
+        raise TypeError("data must be of type DataArray")
 
 
 def ensure_variable_is_compatible(variable, name, data):
     if variable.dimensions != data.dims:
         raise IOError(
-            'Dimension in file is {} but on variable is {}'.format(
-                variable.dimensions, data.dims))
+            "Dimension in file is {} but on variable is {}".format(
+                variable.dimensions, data.dims
+            )
+        )
     for key, value in data.attrs.items():
         if key not in variable.ncattrs():
             raise InvalidStateError(
-                'State has attr {} for quantity {} but this is not '
-                'present in the netCDF file'.format(key, name))
+                "State has attr {} for quantity {} but this is not "
+                "present in the netCDF file".format(key, name)
+            )
         elif value != variable.getncattr(key):
             raise InvalidStateError(
-                'State has attr {} with value {} for quantity {} but '
-                'the value in the netCDF file is {}'.format(
-                    key, value, name,
-                    variable.getncattr(key)))
+                "State has attr {} with value {} for quantity {} but "
+                "the value in the netCDF file is {}".format(
+                    key, value, name, variable.getncattr(key)
+                )
+            )
 
 
 def ensure_dimension_exists(dataset, dim_name, dim_length):
@@ -347,12 +384,15 @@ def ensure_dimension_exists(dataset, dim_name, dim_length):
         if dim_length is None:
             if not dataset.dimensions[dim_name].isunlimited():
                 raise IOError(
-                    'Dimension {} is unlimited in file but dim_length {} '
-                    'is given'.format(dim_name, dim_length))
+                    "Dimension {} is unlimited in file but dim_length {} "
+                    "is given".format(dim_name, dim_length)
+                )
         elif dim_length != dataset.dimensions[dim_name].size:
             raise IOError(
-                'Dimension {} is length {} in file but dim_length {} '
-                'is given'.format(
-                    dim_name, dataset.dimensions[dim_name].size, dim_length))
+                "Dimension {} is length {} in file but dim_length {} "
+                "is given".format(
+                    dim_name, dataset.dimensions[dim_name].size, dim_length
+                )
+            )
     else:
         dataset.createDimension(dim_name, dim_length)

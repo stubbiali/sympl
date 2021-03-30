@@ -1,12 +1,17 @@
+# -*- coding: utf-8 -*-
 import abc
-from .composite import ImplicitTendencyComponentComposite
-from .time import timedelta
-from .combine_properties import combine_properties, combine_component_properties
-from .units import clean_units
-from .state import copy_untouched_quantities
-from .base_components import ImplicitTendencyComponent, Stepper
-from .exceptions import InvalidPropertyDictError
 import warnings
+
+from .base_components import ImplicitTendencyComponent, Stepper
+from .combine_properties import (
+    combine_component_properties,
+    combine_properties,
+)
+from .composite import ImplicitTendencyComponentComposite
+from .exceptions import InvalidPropertyDictError
+from .state import copy_untouched_quantities
+from .time import timedelta
+from .units import clean_units
 
 
 class TendencyStepper(Stepper):
@@ -47,21 +52,24 @@ class TendencyStepper(Stepper):
         A label to be used for this object, for example as would be used for
         Y in the name "X_tendency_from_Y".
     """
+
     __metaclass__ = abc.ABCMeta
 
-    time_unit_name = 's'
+    time_unit_name = "s"
     time_unit_timedelta = timedelta(seconds=1)
 
     @property
     def input_properties(self):
         input_properties = combine_component_properties(
-            self.prognostic_list, 'input_properties')
+            self.prognostic_list, "input_properties"
+        )
         return combine_properties([input_properties, self.output_properties])
 
     @property
     def _tendencycomponent_input_properties(self):
         return combine_component_properties(
-            self.prognostic_list, 'input_properties')
+            self.prognostic_list, "input_properties"
+        )
 
     @property
     def diagnostic_properties(self):
@@ -70,56 +78,66 @@ class TendencyStepper(Stepper):
             return_value.update(prognostic.diagnostic_properties)
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostic_properties(
-                return_value, self._tendency_properties)
+                return_value, self._tendency_properties
+            )
         return return_value
 
     def _insert_tendencies_to_diagnostic_properties(
-            self, diagnostic_properties, tendency_properties):
+        self, diagnostic_properties, tendency_properties
+    ):
         for quantity_name, properties in tendency_properties.items():
             tendency_name = self._get_tendency_name(quantity_name)
             diagnostic_properties[tendency_name] = {
-                'units': properties['units'],
-                'dims': properties['dims'],
+                "units": properties["units"],
+                "dims": properties["dims"],
             }
 
     @property
     def output_properties(self):
         output_properties = self._tendency_properties
         for name, properties in output_properties.items():
-            properties['units'] += ' {}'.format(self.time_unit_name)
-            properties['units'] = clean_units(properties['units'])
+            properties["units"] += " {}".format(self.time_unit_name)
+            properties["units"] = clean_units(properties["units"])
         return output_properties
 
     @property
     def _tendency_properties(self):
         return_dict = {}
-        return_dict.update(combine_component_properties(
-            self.prognostic_list, 'tendency_properties',
-            input_properties=self._tendencycomponent_input_properties
-        ))
+        return_dict.update(
+            combine_component_properties(
+                self.prognostic_list,
+                "tendency_properties",
+                input_properties=self._tendencycomponent_input_properties,
+            )
+        )
         return return_dict
 
     def __str__(self):
         return (
-            'instance of {}(TendencyStepper)\n'
-            '    TendencyComponent components: {}'.format(self.prognostic_list)
+            "instance of {}(TendencyStepper)\n"
+            "    TendencyComponent components: {}".format(self.prognostic_list)
         )
 
     def __repr__(self):
-        if hasattr(self, '_making_repr') and self._making_repr:
-            return '{}(recursive reference)'.format(self.__class__)
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return "{}(recursive reference)".format(self.__class__)
         else:
             self._making_repr = True
-            return_value = '{}({})'.format(
+            return_value = "{}({})".format(
                 self.__class__,
-                '\n'.join('{}: {}'.format(repr(key), repr(value))
-                          for key, value in self.__dict__.items()
-                          if key != '_making_repr'))
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
+            )
             self._making_repr = False
             return return_value
 
     def array_call(self, state, timestep):
-        raise NotImplementedError('TendencyStepper objects do not implement array_call')
+        raise NotImplementedError(
+            "TendencyStepper objects do not implement array_call"
+        )
 
     def __init__(self, *args, **kwargs):
         """
@@ -139,23 +157,26 @@ class TendencyStepper(Stepper):
         """
         if len(args) == 1 and isinstance(args[0], list):
             warnings.warn(
-                'TimeSteppers should be given individual Prognostics rather '
-                'than a list, and will not accept lists in a later version.',
-                DeprecationWarning)
+                "TimeSteppers should be given individual Prognostics rather "
+                "than a list, and will not accept lists in a later version.",
+                DeprecationWarning,
+            )
             args = args[0]
         if any(isinstance(a, ImplicitTendencyComponent) for a in args):
             warnings.warn(
-                'Using an ImplicitTendencyComponent in sympl TendencyStepper objects may '
-                'lead to scientifically invalid results. Make sure the component '
-                'follows the same numerical assumptions as the TendencyStepper used.')
+                "Using an ImplicitTendencyComponent in sympl TendencyStepper objects may "
+                "lead to scientifically invalid results. Make sure the component "
+                "follows the same numerical assumptions as the TendencyStepper used."
+            )
         self.prognostic = ImplicitTendencyComponentComposite(*args)
         super(TendencyStepper, self).__init__(**kwargs)
         for name in self.prognostic.tendency_properties.keys():
             if name not in self.output_properties.keys():
                 raise InvalidPropertyDictError(
-                    'Prognostic object has tendency output for {} but '
-                    'TendencyStepper containing it does not have it in '
-                    'output_properties.'.format(name))
+                    "Prognostic object has tendency output for {} but "
+                    "TendencyStepper containing it does not have it in "
+                    "output_properties.".format(name)
+                )
         self.__initialized = True
 
     @property
@@ -167,7 +188,7 @@ class TendencyStepper(Stepper):
         return self._tendencies_in_diagnostics
 
     def _get_tendency_name(self, quantity_name):
-        return '{}_tendency_from_{}'.format(quantity_name, self.name)
+        return "{}_tendency_from_{}".format(quantity_name, self.name)
 
     def __call__(self, state, timestep):
         """
@@ -190,42 +211,52 @@ class TendencyStepper(Stepper):
         """
         if not self.__initialized:
             raise AssertionError(
-                'TendencyStepper component has not had its base class '
-                '__init__ called, likely due to a missing call to '
-                'super(ClassName, self).__init__(*args, **kwargs) in its '
-                '__init__ method.'
+                "TendencyStepper component has not had its base class "
+                "__init__ called, likely due to a missing call to "
+                "super(ClassName, self).__init__(*args, **kwargs) in its "
+                "__init__ method."
             )
         diagnostics, new_state = self._call(state, timestep)
         copy_untouched_quantities(state, new_state)
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostics(
-                state, new_state, timestep, diagnostics)
+                state, new_state, timestep, diagnostics
+            )
         return diagnostics, new_state
 
     def _insert_tendencies_to_diagnostics(
-            self, state, new_state, timestep, diagnostics):
+        self, state, new_state, timestep, diagnostics
+    ):
         output_properties = self.output_properties
         input_properties = self.input_properties
         for name in output_properties.keys():
             tendency_name = self._get_tendency_name(name)
             if tendency_name in diagnostics.keys():
                 raise RuntimeError(
-                    'A TendencyComponent has output tendencies as a diagnostic and has'
-                    ' caused a name clash when trying to do so from this '
-                    'TendencyStepper ({}). You must disable '
-                    'tendencies_in_diagnostics for this TendencyStepper.'.format(
-                        tendency_name))
-            base_units = input_properties[name]['units']
+                    "A TendencyComponent has output tendencies as a diagnostic and has"
+                    " caused a name clash when trying to do so from this "
+                    "TendencyStepper ({}). You must disable "
+                    "tendencies_in_diagnostics for this TendencyStepper.".format(
+                        tendency_name
+                    )
+                )
+            base_units = input_properties[name]["units"]
             diagnostics[tendency_name] = (
-                (new_state[name].to_units(base_units) - state[name].to_units(base_units)) /
-                timestep.total_seconds() * self.time_unit_timedelta.total_seconds()
+                (
+                    new_state[name].to_units(base_units)
+                    - state[name].to_units(base_units)
+                )
+                / timestep.total_seconds()
+                * self.time_unit_timedelta.total_seconds()
             )
-            if base_units == '':
-                diagnostics[tendency_name].attrs['units'] = '{}^-1'.format(
-                    self.time_unit_name)
+            if base_units == "":
+                diagnostics[tendency_name].attrs["units"] = "{}^-1".format(
+                    self.time_unit_name
+                )
             else:
-                diagnostics[tendency_name].attrs['units'] = '{} {}^-1'.format(
-                    base_units, self.time_unit_name)
+                diagnostics[tendency_name].attrs["units"] = "{} {}^-1".format(
+                    base_units, self.time_unit_name
+                )
 
     def _call(self, state, timestep):
         """

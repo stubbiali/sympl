@@ -1,10 +1,10 @@
+# -*- coding: utf-8 -*-
 from datetime import datetime
 
 import numpy as np
 
 from .dataarray import DataArray
-from .exceptions import (
-    SharedKeyError, InvalidStateError)
+from .exceptions import InvalidStateError, SharedKeyError
 
 try:
     from numba import jit
@@ -15,6 +15,7 @@ except ImportError:
             return lambda x: x
         else:
             return signature_or_function
+
 
 # internal exceptions used only within this module
 
@@ -32,8 +33,11 @@ class ShapeMismatchError(Exception):
 
 
 def get_numpy_array(
-        data_array, out_dims, return_wildcard_matches=False,
-        require_wildcard_matches=None):
+    data_array,
+    out_dims,
+    return_wildcard_matches=False,
+    require_wildcard_matches=None,
+):
     """
     Retrieve a numpy array with the desired dimensions and dimension order
     from the given DataArray, using transpose and creating length 1 dimensions
@@ -77,40 +81,53 @@ def get_numpy_array(
     # be re-written to be simpler now that we do not.
     if (len(data_array.values.shape) == 0) and (len(out_dims) == 0):
         direction_to_names = {}  # required in case we need wildcard_matches
-        return_array = data_array.values  # special case, 0-dimensional scalar array
+        return_array = (
+            data_array.values
+        )  # special case, 0-dimensional scalar array
     else:
         current_dim_names = {}
         for dim in out_dims:
-            if dim != '*':
+            if dim != "*":
                 current_dim_names[dim] = [dim]
         direction_to_names = get_input_array_dim_names(
-            data_array, out_dims, current_dim_names)
+            data_array, out_dims, current_dim_names
+        )
         if require_wildcard_matches is not None:
             for direction in out_dims:
-                if (direction in require_wildcard_matches and
-                        same_list(direction_to_names[direction],
-                                  require_wildcard_matches[direction])):
+                if direction in require_wildcard_matches and same_list(
+                    direction_to_names[direction],
+                    require_wildcard_matches[direction],
+                ):
                     direction_to_names[direction] = require_wildcard_matches[
-                        direction]
+                        direction
+                    ]
                 else:
                     # we could raise an exception here, because this is
                     # inconsistent, but that exception is already raised
                     # elsewhere when ensure_dims_like_are_satisfied is called
                     pass
         target_dimension_order = get_target_dimension_order(
-            out_dims, direction_to_names)
+            out_dims, direction_to_names
+        )
         for dim in data_array.dims:
             if dim not in target_dimension_order:
                 raise DimensionNotInOutDimsError(dim)
         slices_or_none = get_slices_and_placeholder_nones(
-            data_array, out_dims, direction_to_names)
+            data_array, out_dims, direction_to_names
+        )
         final_shape = get_final_shape(data_array, out_dims, direction_to_names)
-        return_array = np.reshape(data_array.transpose(
-            *target_dimension_order).values[slices_or_none], final_shape)
+        return_array = np.reshape(
+            data_array.transpose(*target_dimension_order).values[
+                slices_or_none
+            ],
+            final_shape,
+        )
     if return_wildcard_matches:
         wildcard_matches = {
-            key: value for key, value in direction_to_names.items()
-            if key == '*'}
+            key: value
+            for key, value in direction_to_names.items()
+            if key == "*"
+        }
         return return_array, wildcard_matches
     else:
         return return_array
@@ -155,10 +172,11 @@ def restore_dimensions(array, from_dims, result_like, result_attrs=None):
     """
     current_dim_names = {}
     for dim in from_dims:
-        if dim != '*':
+        if dim != "*":
             current_dim_names[dim] = [dim]
     direction_to_names = get_input_array_dim_names(
-        result_like, from_dims, current_dim_names)
+        result_like, from_dims, current_dim_names
+    )
     original_shape = []
     original_dims = []
     original_coords = []
@@ -173,23 +191,26 @@ def restore_dimensions(array, from_dims, result_like, result_attrs=None):
     data_array = DataArray(
         np.reshape(array, original_shape),
         dims=original_dims,
-        coords=original_coords).transpose(
-            *list(result_like.dims))
+        coords=original_coords,
+    ).transpose(*list(result_like.dims))
     if result_attrs is not None:
         data_array.attrs = result_attrs
     return data_array
 
 
 def datetime64_to_datetime(dt64):
-    ts = (dt64 - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+    ts = (dt64 - np.datetime64("1970-01-01T00:00:00Z")) / np.timedelta64(
+        1, "s"
+    )
     return datetime.utcfromtimestamp(ts)
 
 
 def same_list(list1, list2):
     """Returns a boolean indicating whether the items in list1 are the same
     items present in list2 (ignoring order)."""
-    return (len(list1) == len(list2) and all(
-        [item in list2 for item in list1] + [item in list1 for item in list2]))
+    return len(list1) == len(list2) and all(
+        [item in list2 for item in list1] + [item in list1 for item in list2]
+    )
 
 
 def update_dict_by_adding_another(dict1, dict2):
@@ -202,19 +223,29 @@ def update_dict_by_adding_another(dict1, dict2):
     """
     for key in dict2.keys():
         if key not in dict1:
-            if hasattr(dict2[key], 'copy'):
+            if hasattr(dict2[key], "copy"):
                 dict1[key] = dict2[key].copy()
             else:
                 dict1[key] = dict2[key]
         else:
-            if (isinstance(dict1[key], DataArray) and isinstance(dict2[key], DataArray)):
-                if 'units' not in dict1[key].attrs or 'units' not in dict2[key].attrs:
+            if isinstance(dict1[key], DataArray) and isinstance(
+                dict2[key], DataArray
+            ):
+                if (
+                    "units" not in dict1[key].attrs
+                    or "units" not in dict2[key].attrs
+                ):
                     raise InvalidStateError(
-                        'DataArray objects must have units property defined')
+                        "DataArray objects must have units property defined"
+                    )
                 try:
-                    dict1[key] += dict2[key].to_units(dict1[key].attrs['units'])
+                    dict1[key] += dict2[key].to_units(
+                        dict1[key].attrs["units"]
+                    )
                 except ValueError:  # dict1[key] is missing a dimension present in dict2[key]
-                    dict1[key] = dict1[key] + dict2[key].to_units(dict1[key].attrs['units'])
+                    dict1[key] = dict1[key] + dict2[key].to_units(
+                        dict1[key].attrs["units"]
+                    )
             else:
                 dict1[key] += dict2[key]  # += is in-place addition operator
     return  # not returning anything emphasizes that this is in-place
@@ -227,8 +258,7 @@ def ensure_no_shared_keys(dict1, dict2):
     """
     shared_keys = set(dict1.keys()).intersection(dict2.keys())
     if len(shared_keys) > 0:
-        raise SharedKeyError(
-            'unexpected shared keys: {}'.format(shared_keys))
+        raise SharedKeyError("unexpected shared keys: {}".format(shared_keys))
 
 
 def get_input_array_dim_names(data_array, out_dims, dim_names):
@@ -251,24 +281,28 @@ def get_input_array_dim_names(data_array, out_dims, dim_names):
     """
     input_array_dim_names = {}
     for direction in out_dims:
-        if direction != '*':
-            matching_dims = set(
-                data_array.dims).intersection(dim_names[direction])
+        if direction != "*":
+            matching_dims = set(data_array.dims).intersection(
+                dim_names[direction]
+            )
             # must ensure matching dims are in right order
             input_array_dim_names[direction] = []
             for dim in data_array.dims:
                 if dim in matching_dims:
                     input_array_dim_names[direction].append(dim)
-            if (direction not in ('x', 'y', 'z', '*') and
-                    len(input_array_dim_names[direction]) == 0):
+            if (
+                direction not in ("x", "y", "z", "*")
+                and len(input_array_dim_names[direction]) == 0
+            ):
                 raise NoMatchForDirectionError(direction)
-    if '*' in out_dims:
-        matching_dims = set(
-            data_array.dims).difference(set.union(set([]), *input_array_dim_names.values()))
-        input_array_dim_names['*'] = []
+    if "*" in out_dims:
+        matching_dims = set(data_array.dims).difference(
+            set.union(set([]), *input_array_dim_names.values())
+        )
+        input_array_dim_names["*"] = []
         for dim in data_array.dims:
             if dim in matching_dims:
-                input_array_dim_names['*'].append(dim)
+                input_array_dim_names["*"].append(dim)
     return input_array_dim_names
 
 
@@ -301,9 +335,12 @@ def get_slices_and_placeholder_nones(data_array, out_dims, direction_to_names):
     for direction in out_dims:
         if len(direction_to_names[direction]) == 0:
             slices_or_none.append(None)
-        elif (direction is not '*') and (len(direction_to_names[direction]) > 1):
+        elif (direction is not "*") and (
+            len(direction_to_names[direction]) > 1
+        ):
             raise ValueError(
-                'DataArray has multiple dimensions for a single direction')
+                "DataArray has multiple dimensions for a single direction"
+            )
         else:
             for name in direction_to_names[direction]:
                 slices_or_none.append(slice(0, len(data_array.coords[name])))
@@ -323,8 +360,13 @@ def get_final_shape(data_array, out_dims, direction_to_names):
         else:
             # determine shape once dimensions for direction (usually '*') are combined
             final_shape.append(
-                np.product([len(data_array.coords[name])
-                            for name in direction_to_names[direction]]))
+                np.product(
+                    [
+                        len(data_array.coords[name])
+                        for name in direction_to_names[direction]
+                    ]
+                )
+            )
     return final_shape
 
 
@@ -351,12 +393,15 @@ def get_component_aliases(*args):
     """
     return_dict = {}
     for property_type in (
-            'tendency_properties', 'diagnostic_properties', 'output_properties',
-            'input_properties'):
+        "tendency_properties",
+        "diagnostic_properties",
+        "output_properties",
+        "input_properties",
+    ):
         for component in args:
             if hasattr(component, property_type):
                 component_properties = getattr(component, property_type)
                 for name, properties in component_properties.items():
-                    if 'alias' in properties.keys():
-                        return_dict[name] = properties['alias']
+                    if "alias" in properties.keys():
+                        return_dict[name] = properties["alias"]
     return return_dict

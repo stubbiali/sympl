@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
 import xarray as xr
 from pint.errors import DimensionalityError
+
 from .units import data_array_to_units as to_units_function
 
 
@@ -45,7 +47,7 @@ class DataArray(xr.DataArray):
             A DataArray containing the data from this object in the
             desired units, if possible.
         """
-        if 'units' not in self.attrs:
+        if "units" not in self.attrs:
             raise KeyError('"units" not present in attrs')
         try:
             return to_units_function(self, units)

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import functools
+
 import pint
 
 
@@ -7,7 +8,8 @@ class UnitRegistry(pint.UnitRegistry):
     @functools.lru_cache
     def __call__(self, input_string, **kwargs):
         return super(UnitRegistry, self).__call__(
-            input_string.replace(u"%", "percent").replace(u"°", "degree"), **kwargs
+            input_string.replace("%", "percent").replace("°", "degree"),
+            **kwargs
         )
 
 
@@ -76,7 +78,9 @@ def is_valid_unit(unit_string):
 
 def data_array_to_units(value, units):
     if not hasattr(value, "attrs") or "units" not in value.attrs:
-        raise TypeError("Cannot retrieve units from type {}".format(type(value)))
+        raise TypeError(
+            "Cannot retrieve units from type {}".format(type(value))
+        )
     elif unit_registry(value.attrs["units"]) != unit_registry(units):
         out = value.copy()
         out.data[...] = (

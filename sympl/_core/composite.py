@@ -1,15 +1,21 @@
-from .base_components import TendencyComponent, DiagnosticComponent, Monitor, ImplicitTendencyComponent
-from .util import (
-    update_dict_by_adding_another, ensure_no_shared_keys)
+# -*- coding: utf-8 -*-
+from .base_components import (
+    DiagnosticComponent,
+    ImplicitTendencyComponent,
+    Monitor,
+    TendencyComponent,
+)
 from .combine_properties import combine_component_properties
 from .exceptions import InvalidPropertyDictError
+from .util import ensure_no_shared_keys, update_dict_by_adding_another
 
 
 class InputPropertiesCompositeMixin(object):
-
     @property
     def input_properties(self):
-        return combine_component_properties(self.component_list, 'input_properties')
+        return combine_component_properties(
+            self.component_list, "input_properties"
+        )
 
     def __init__(self, *args):
         self.input_properties
@@ -23,7 +29,6 @@ class InputPropertiesCompositeMixin(object):
 
 
 class DiagnosticPropertiesCompositeMixin(object):
-
     @property
     def diagnostic_properties(self):
         return_dict = {}
@@ -31,9 +36,12 @@ class DiagnosticPropertiesCompositeMixin(object):
             ensure_no_shared_keys(component.diagnostic_properties, return_dict)
             return_dict.update(component.diagnostic_properties)
         for name, properties in return_dict.items():
-            if 'dims' not in properties.keys() and not (name in self.input_properties):
+            if "dims" not in properties.keys() and not (
+                name in self.input_properties
+            ):
                 raise InvalidPropertyDictError(
-                    'Must define dims for diagnostic output {}'.format(name))
+                    "Must define dims for diagnostic output {}".format(name)
+                )
         return return_dict
 
     def __init__(self, *args):
@@ -60,14 +68,16 @@ class ComponentComposite(object):
     component_class = None
 
     def __str__(self):
-        return '{}(\n{}\n)'.format(
+        return "{}(\n{}\n)".format(
             self.__class__,
-            ',\n'.join(str(component) for component in self.component_list))
+            ",\n".join(str(component) for component in self.component_list),
+        )
 
     def __repr__(self):
-        return '{}(\n{}\n)'.format(
+        return "{}(\n{}\n)".format(
             self.__class__,
-            ',\n'.join(repr(component) for component in self.component_list))
+            ",\n".join(repr(component) for component in self.component_list),
+        )
 
     def __init__(self, *args):
         """
@@ -95,20 +105,26 @@ def ensure_components_have_class(components, component_class):
     for component in components:
         if not isinstance(component, component_class):
             raise TypeError(
-                'Component should be of type {} but is type {}'.format(
-                    component_class, type(component)))
+                "Component should be of type {} but is type {}".format(
+                    component_class, type(component)
+                )
+            )
 
 
 class TendencyComponentComposite(
-        ComponentComposite, InputPropertiesCompositeMixin,
-        DiagnosticPropertiesCompositeMixin, TendencyComponent):
+    ComponentComposite,
+    InputPropertiesCompositeMixin,
+    DiagnosticPropertiesCompositeMixin,
+    TendencyComponent,
+):
 
     component_class = TendencyComponent
 
     @property
     def tendency_properties(self):
         return combine_component_properties(
-            self.component_list, 'tendency_properties', self.input_properties)
+            self.component_list, "tendency_properties", self.input_properties
+        )
 
     def __init__(self, *args):
         """
@@ -171,15 +187,19 @@ class TendencyComponentComposite(
 
 
 class ImplicitTendencyComponentComposite(
-        ComponentComposite, InputPropertiesCompositeMixin,
-        DiagnosticPropertiesCompositeMixin, ImplicitTendencyComponent):
+    ComponentComposite,
+    InputPropertiesCompositeMixin,
+    DiagnosticPropertiesCompositeMixin,
+    ImplicitTendencyComponent,
+):
 
     component_class = (TendencyComponent, ImplicitTendencyComponent)
 
     @property
     def tendency_properties(self):
         return combine_component_properties(
-            self.component_list, 'tendency_properties', self.input_properties)
+            self.component_list, "tendency_properties", self.input_properties
+        )
 
     def __init__(self, *args):
         """
@@ -245,8 +265,11 @@ class ImplicitTendencyComponentComposite(
 
 
 class DiagnosticComponentComposite(
-        ComponentComposite, InputPropertiesCompositeMixin,
-        DiagnosticPropertiesCompositeMixin, DiagnosticComponent):
+    ComponentComposite,
+    InputPropertiesCompositeMixin,
+    DiagnosticPropertiesCompositeMixin,
+    DiagnosticComponent,
+):
 
     component_class = DiagnosticComponent
 

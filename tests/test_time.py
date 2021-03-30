@@ -1,13 +1,17 @@
-from datetime import datetime as real_datetime
-from sympl import datetime, timedelta
+# -*- coding: utf-8 -*-
 import unittest
+from datetime import datetime as real_datetime
+
 import pytz
+
+from sympl import datetime, timedelta
+
 try:
     import cftime as ct
 except ImportError:
     ct = None
 
-netcdftime_not_installed = 'cftime module is not installed'
+netcdftime_not_installed = "cftime module is not installed"
 
 
 class DatetimeBase(object):
@@ -51,10 +55,16 @@ class DatetimeBase(object):
 class ProlepticGregorianTests(unittest.TestCase, DatetimeBase):
 
     dt_class = real_datetime
-    calendar = 'proleptic_gregorian'
+    calendar = "proleptic_gregorian"
 
     def tz_dt(self):
-        return datetime(2003, 9, 30, tzinfo=pytz.timezone('US/Eastern'), calendar=self.calendar)
+        return datetime(
+            2003,
+            9,
+            30,
+            tzinfo=pytz.timezone("US/Eastern"),
+            calendar=self.calendar,
+        )
 
     def testTimezoneAwareDatetimeIsCorrectClass(self):
         assert isinstance(self.tz_dt(), self.dt_class)
@@ -73,7 +83,7 @@ class ProlepticGregorianTests(unittest.TestCase, DatetimeBase):
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class NoLeapTests(unittest.TestCase, DatetimeBase):
 
-    calendar = 'no_leap'
+    calendar = "no_leap"
 
     @property
     def dt_class(self):
@@ -83,7 +93,7 @@ class NoLeapTests(unittest.TestCase, DatetimeBase):
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class Datetime365DayTests(unittest.TestCase, DatetimeBase):
 
-    calendar = '365_day'
+    calendar = "365_day"
 
     @property
     def dt_class(self):
@@ -108,7 +118,7 @@ class Datetime365DayTests(unittest.TestCase, DatetimeBase):
 
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class AllLeapTests(unittest.TestCase, DatetimeBase):
-    calendar = 'all_leap'
+    calendar = "all_leap"
 
     @property
     def dt_class(self):
@@ -117,7 +127,7 @@ class AllLeapTests(unittest.TestCase, DatetimeBase):
 
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class Datetime366DayTests(unittest.TestCase, DatetimeBase):
-    calendar = '366_day'
+    calendar = "366_day"
 
     @property
     def dt_class(self):
@@ -142,7 +152,7 @@ class Datetime366DayTests(unittest.TestCase, DatetimeBase):
 
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class Datetime360DayTests(unittest.TestCase, DatetimeBase):
-    calendar = '360_day'
+    calendar = "360_day"
 
     @property
     def dt_class(self):
@@ -167,7 +177,7 @@ class Datetime360DayTests(unittest.TestCase, DatetimeBase):
 
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class JulianTests(unittest.TestCase, DatetimeBase):
-    calendar = 'julian'
+    calendar = "julian"
 
     @property
     def dt_class(self):
@@ -176,7 +186,7 @@ class JulianTests(unittest.TestCase, DatetimeBase):
 
 @unittest.skipIf(ct is None, netcdftime_not_installed)
 class GregorianTests(unittest.TestCase, DatetimeBase):
-    calendar = 'gregorian'
+    calendar = "gregorian"
 
     @property
     def dt_class(self):

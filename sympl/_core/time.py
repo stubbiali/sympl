@@ -1,18 +1,39 @@
-from datetime import datetime as real_datetime, timedelta
+# -*- coding: utf-8 -*-
+from datetime import datetime as real_datetime
+from datetime import timedelta
+
 from .exceptions import DependencyError
+
 try:
     import cftime as ct
-    if not all(hasattr(ct, attr) for attr in [
-            'DatetimeNoLeap', 'DatetimeProlepticGregorian', 'DatetimeAllLeap',
-            'Datetime360Day', 'DatetimeJulian', 'DatetimeGregorian']):
+
+    if not all(
+        hasattr(ct, attr)
+        for attr in [
+            "DatetimeNoLeap",
+            "DatetimeProlepticGregorian",
+            "DatetimeAllLeap",
+            "Datetime360Day",
+            "DatetimeJulian",
+            "DatetimeGregorian",
+        ]
+    ):
         ct = None
 except ImportError:
     ct = None
 
 
 def datetime(
-        year, month, day, hour=0, minute=0, second=0, microsecond=0,
-        tzinfo=None, calendar='proleptic_gregorian'):
+    year,
+    month,
+    day,
+    hour=0,
+    minute=0,
+    second=0,
+    microsecond=0,
+    tzinfo=None,
+    calendar="proleptic_gregorian",
+):
     """
     Retrieves a datetime-like object with the requested calendar. Calendar types
     other than proleptic_gregorian require the netcdftime module to be
@@ -44,26 +65,34 @@ def datetime(
         datetime-like types in netcdftime.
     """
     kwargs = {
-        'year': year, 'month': month, 'day': day, 'hour': hour,
-        'minute': minute, 'second': second, 'microsecond': microsecond
+        "year": year,
+        "month": month,
+        "day": day,
+        "hour": hour,
+        "minute": minute,
+        "second": second,
+        "microsecond": microsecond,
     }
-    if calendar.lower() == 'proleptic_gregorian':
+    if calendar.lower() == "proleptic_gregorian":
         return real_datetime(tzinfo=tzinfo, **kwargs)
     elif tzinfo is not None:
-        raise ValueError('netcdftime does not support timezone-aware datetimes')
+        raise ValueError(
+            "netcdftime does not support timezone-aware datetimes"
+        )
     elif ct is None:
         raise DependencyError(
             "Calendars other than 'proleptic_gregorian' require the netcdftime "
-            "package, which is not installed.")
-    elif calendar.lower() in ('all_leap', '366_day'):
+            "package, which is not installed."
+        )
+    elif calendar.lower() in ("all_leap", "366_day"):
         return ct.DatetimeAllLeap(**kwargs)
-    elif calendar.lower() in ('no_leap', 'noleap', '365_day'):
+    elif calendar.lower() in ("no_leap", "noleap", "365_day"):
         return ct.DatetimeNoLeap(**kwargs)
-    elif calendar.lower() == '360_day':
+    elif calendar.lower() == "360_day":
         return ct.Datetime360Day(**kwargs)
-    elif calendar.lower() == 'julian':
+    elif calendar.lower() == "julian":
         return ct.DatetimeJulian(**kwargs)
-    elif calendar.lower() == 'gregorian':
+    elif calendar.lower() == "gregorian":
         return ct.DatetimeGregorian(**kwargs)
 
 

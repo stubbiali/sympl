@@ -1,8 +1,10 @@
-from .exceptions import InvalidPropertyDictError
+# -*- coding: utf-8 -*-
 import numpy as np
-from .units import units_are_same
+
+from .exceptions import InvalidPropertyDictError
 from .get_np_arrays import get_numpy_arrays_with_properties
 from .restore_dataarray import restore_data_arrays_with_properties
+from .units import units_are_same
 
 _tracer_unit_dict = {}
 _tracer_names = []
@@ -31,12 +33,12 @@ def register_tracer(name, units):
     units : str
         Unit string of that quantity.
     """
-    if name in _tracer_unit_dict and not units_are_same(_tracer_unit_dict[name], units):
+    if name in _tracer_unit_dict and not units_are_same(
+        _tracer_unit_dict[name], units
+    ):
         raise ValueError(
-            'Tracer {} is already registered with units {} which are different '
-            'from input units {}'.format(
-                name, _tracer_unit_dict[name], units
-            )
+            "Tracer {} is already registered with units {} which are different "
+            "from input units {}".format(name, _tracer_unit_dict[name], units)
         )
     _tracer_unit_dict[name] = units
     _tracer_names.append(name)
@@ -82,38 +84,40 @@ def get_tracer_input_properties(prepend_tracers, tracer_dims):
             additional tracers.
     """
     tracer_dims = list(tracer_dims)
-    if 'tracer' in tracer_dims:
-        tracer_dims.remove('tracer')
+    if "tracer" in tracer_dims:
+        tracer_dims.remove("tracer")
     tracer_units = {}
     tracer_units.update(get_tracer_unit_dict())
     tracer_units.update(dict(prepend_tracers))
     tracer_properties = {}
     for name, units in tracer_units.items():
-        tracer_properties[name] = {'units': units, 'dims': tracer_dims}
+        tracer_properties[name] = {"units": units, "dims": tracer_dims}
     return tracer_properties
 
 
 def get_quantity_dims(tracer_dims):
-    if 'tracer' not in tracer_dims:
+    if "tracer" not in tracer_dims:
         raise ValueError("Tracer dims must include a dimension named 'tracer'")
     quantity_dims = list(tracer_dims)
-    quantity_dims.remove('tracer')
+    quantity_dims.remove("tracer")
     return tuple(quantity_dims)
 
 
 class TracerPacker(object):
-
     def __init__(self, component, tracer_dims, prepend_tracers=None):
         self._prepend_tracers = prepend_tracers or ()
         self._tracer_dims = tuple(tracer_dims)
         self._tracer_quantity_dims = get_quantity_dims(tracer_dims)
-        if hasattr(component, 'tendency_properties') or hasattr(component, 'output_properties'):
+        if hasattr(component, "tendency_properties") or hasattr(
+            component, "output_properties"
+        ):
             self.component = component
         else:
             raise TypeError(
-                'Expected a component object subclassing type Stepper, '
-                'ImplicitTendencyComponent, or TendencyComponent but received component of '
-                'type {}'.format(component.__class__.__name__))
+                "Expected a component object subclassing type Stepper, "
+                "ImplicitTendencyComponent, or TendencyComponent but received component of "
+                "type {}".format(component.__class__.__name__)
+            )
         for name, units in self._prepend_tracers:
             if name not in _tracer_unit_dict.keys():
                 self.ensure_tracer_not_in_outputs(name, units)
@@ -122,16 +126,16 @@ class TracerPacker(object):
         _packers.add(self)
 
     def ensure_tracer_not_in_outputs(self, name, units):
-        if hasattr(self.component, 'tendency_properties'):
+        if hasattr(self.component, "tendency_properties"):
             self._ensure_tracer_not_in_tendency_properties(name, units)
-        elif hasattr(self.component, 'output_properties'):
+        elif hasattr(self.component, "output_properties"):
             self.ensure_tracer_not_in_output_properties(name, units)
 
     def ensure_tracer_not_in_output_properties(self, name, units):
         if name in self.component.output_properties.keys():
             raise InvalidPropertyDictError(
-                'Attempted to insert {} as tracer to component of type {} but '
-                'it already has that quantity defined as an output.'.format(
+                "Attempted to insert {} as tracer to component of type {} but "
+                "it already has that quantity defined as an output.".format(
                     name, self.component.__class__.__name__
                 )
             )
@@ -139,27 +143,26 @@ class TracerPacker(object):
     def _ensure_tracer_not_in_tendency_properties(self, name, units):
         if name in self.component.tendency_properties.keys():
             raise InvalidPropertyDictError(
-                'Attempted to insert {} as tracer to component of type {} but '
-                'it already has that quantity defined as a tendency '
-                'output.'.format(
-                    name, self.component.__class__.__name__
-                )
+                "Attempted to insert {} as tracer to component of type {} but "
+                "it already has that quantity defined as a tendency "
+                "output.".format(name, self.component.__class__.__name__)
             )
 
     def _ensure_tracer_quantity_dims(self, dims):
         if tuple(self._tracer_quantity_dims) != tuple(dims):
             raise InvalidPropertyDictError(
-                'Tracers have conflicting dims {} and {}'.format(
-                    self._tracer_quantity_dims, dims)
+                "Tracers have conflicting dims {} and {}".format(
+                    self._tracer_quantity_dims, dims
+                )
             )
 
     def register_tracers(self, unit_dict, input_properties):
         for name, units in unit_dict.items():
             if name not in input_properties.keys():
                 input_properties[name] = {
-                    'dims': self._tracer_quantity_dims,
-                    'units': units,
-                    'tracer': True,
+                    "dims": self._tracer_quantity_dims,
+                    "units": units,
+                    "tracer": True,
                 }
 
     @property
@@ -174,7 +177,7 @@ class TracerPacker(object):
 
     @property
     def _tracer_index(self):
-        return self._tracer_dims.index('tracer')
+        return self._tracer_dims.index("tracer")
 
     def pack(self, state):
         """
@@ -188,7 +191,8 @@ class TracerPacker(object):
                 object.
         """
         tracer_properties = get_tracer_input_properties(
-            self._prepend_tracers, self._tracer_quantity_dims)
+            self._prepend_tracers, self._tracer_quantity_dims
+        )
         raw_state = get_numpy_arrays_with_properties(state, tracer_properties)
         if len(self.tracer_names) == 0:
             shape = [0 for dim in self._tracer_dims]
@@ -202,7 +206,7 @@ class TracerPacker(object):
             array[tracer_slice] = raw_state[name]
         return array
 
-    def unpack(self, tracer_array, input_state, multiply_unit=''):
+    def unpack(self, tracer_array, input_state, multiply_unit=""):
         """
 
         Args:
@@ -221,7 +225,8 @@ class TracerPacker(object):
                 tracer.
         """
         tracer_properties = get_tracer_input_properties(
-            self._prepend_tracers, self._tracer_quantity_dims)
+            self._prepend_tracers, self._tracer_quantity_dims
+        )
         raw_state = {}
         for i, name in enumerate(self.tracer_names):
             tracer_slice = [slice(0, d) for d in tracer_array.shape]
@@ -230,9 +235,11 @@ class TracerPacker(object):
         out_properties = {}
         for name, properties in tracer_properties.items():
             out_properties[name] = properties.copy()
-            if multiply_unit is not '':
-                out_properties[name]['units'] = '{} {}'.format(
-                    out_properties[name]['units'], multiply_unit)
+            if multiply_unit is not "":
+                out_properties[name]["units"] = "{} {}".format(
+                    out_properties[name]["units"], multiply_unit
+                )
         return_state = restore_data_arrays_with_properties(
-            raw_state, out_properties, input_state, tracer_properties)
+            raw_state, out_properties, input_state, tracer_properties
+        )
         return return_state

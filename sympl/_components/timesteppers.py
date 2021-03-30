@@ -1,6 +1,7 @@
-from .._core.tendencystepper import TendencyStepper
+# -*- coding: utf-8 -*-
 from .._core.dataarray import DataArray
-from .._core.state import copy_untouched_quantities, add, multiply
+from .._core.state import add, copy_untouched_quantities, multiply
+from .._core.tendencystepper import TendencyStepper
 
 
 class SSPRungeKutta(TendencyStepper):
@@ -21,10 +22,11 @@ class SSPRungeKutta(TendencyStepper):
         stages: int, optional
             Number of stages to use. Should be 2 or 3. Default is 3.
         """
-        stages = kwargs.pop('stages', 3)
+        stages = kwargs.pop("stages", 3)
         if stages not in (2, 3):
             raise ValueError(
-                'stages must be one of 2 or 3, received {}'.format(stages))
+                "stages must be one of 2 or 3, received {}".format(stages)
+            )
         self._stages = stages
         self._euler_stepper = AdamsBashforth(*args, order=1)
         super(SSPRungeKutta, self).__init__(*args, **kwargs)
@@ -59,7 +61,7 @@ class SSPRungeKutta(TendencyStepper):
         _, state_1_5 = self._euler_stepper(state_1, timestep)
         state_2 = add(multiply(0.75, state), multiply(0.25, state_1_5))
         _, state_2_5 = self._euler_stepper(state_2, timestep)
-        out_state = add(multiply(1./3, state), multiply(2./3, state_2_5))
+        out_state = add(multiply(1.0 / 3, state), multiply(2.0 / 3, state_2_5))
         return diagnostics, out_state
 
     def _step_2_stages(self, state, timestep):
@@ -86,13 +88,13 @@ class AdamsBashforth(TendencyStepper):
             The order of accuracy to use. Must be between
             1 and 4. 1 is the same as the Euler method. Default is 3.
         """
-        order = kwargs.pop('order', 3)
+        order = kwargs.pop("order", 3)
         if isinstance(order, float) and order.is_integer():
             order = int(order)
         if not isinstance(order, int):
-            raise TypeError('order must be an integer')
+            raise TypeError("order must be an integer")
         if not 1 <= order <= 4:
-            raise ValueError('order must be between 1 and 4')
+            raise ValueError("order must be between 1 and 4")
         self._order = order
         self._timestep = None
         self._tendencies_list = []
@@ -140,16 +142,21 @@ class AdamsBashforth(TendencyStepper):
         order = min(self._order, len(self._tendencies_list))
         if order == 1:
             new_state = step_forward_euler(
-                state, self._tendencies_list[-1], timestep)
+                state, self._tendencies_list[-1], timestep
+            )
         elif order == 2:
-            new_state = second_bashforth(state, self._tendencies_list, timestep)
+            new_state = second_bashforth(
+                state, self._tendencies_list, timestep
+            )
         elif order == 3:
             new_state = third_bashforth(state, self._tendencies_list, timestep)
         elif order == 4:
-            new_state = fourth_bashforth(state, self._tendencies_list, timestep)
+            new_state = fourth_bashforth(
+                state, self._tendencies_list, timestep
+            )
         else:
             # the following should never happen, if it is there's a bug
-            raise RuntimeError('order should be integer between 1 and 4')
+            raise RuntimeError("order should be integer between 1 and 4")
         return new_state
 
     def _ensure_constant_timestep(self, timestep):
@@ -157,7 +164,8 @@ class AdamsBashforth(TendencyStepper):
             self._timestep = timestep
         elif self._timestep != timestep:
             raise ValueError(
-                'timestep must be constant for Adams-Bashforth time stepping')
+                "timestep must be constant for Adams-Bashforth time stepping"
+            )
 
 
 def convert_tendencies_units_for_state(tendencies, state):
@@ -168,9 +176,15 @@ def convert_tendencies_units_for_state(tendencies, state):
     This is done in-place.
     """
     for quantity_name in tendencies.keys():
-        if isinstance(tendencies[quantity_name], DataArray) and ('units' in tendencies[quantity_name].attrs):
-            desired_units = '{} s^-1'.format(state[quantity_name].attrs['units'])
-            tendencies[quantity_name] = tendencies[quantity_name].to_units(desired_units)
+        if isinstance(tendencies[quantity_name], DataArray) and (
+            "units" in tendencies[quantity_name].attrs
+        ):
+            desired_units = "{} s^-1".format(
+                state[quantity_name].attrs["units"]
+            )
+            tendencies[quantity_name] = tendencies[quantity_name].to_units(
+                desired_units
+            )
 
 
 class Leapfrog(TendencyStepper):
@@ -210,9 +224,9 @@ class Leapfrog(TendencyStepper):
         doi: 10.1175/2009MWR2724.1.
         """
         self._old_state = None
-        self._asselin_strength = kwargs.pop('asselin_strength', 0.05)
+        self._asselin_strength = kwargs.pop("asselin_strength", 0.05)
         self._timestep = None
-        self._alpha = kwargs.pop('alpha', 0.5)
+        self._alpha = kwargs.pop("alpha", 0.5)
         super(Leapfrog, self).__init__(*args, **kwargs)
 
     def _call(self, state, timestep):
@@ -253,8 +267,13 @@ class Leapfrog(TendencyStepper):
             new_state = step_forward_euler(state, tendencies, timestep)
         else:
             state, new_state = step_leapfrog(
-                self._old_state, state, tendencies, timestep,
-                asselin_strength=self._asselin_strength, alpha=self._alpha)
+                self._old_state,
+                state,
+                tendencies,
+                timestep,
+                asselin_strength=self._asselin_strength,
+                alpha=self._alpha,
+            )
         copy_untouched_quantities(state, new_state)
         self._old_state = state
         for key in original_state.keys():
@@ -266,12 +285,13 @@ class Leapfrog(TendencyStepper):
             self._timestep = timestep
         elif self._timestep != timestep:
             raise ValueError(
-                'timestep must be constant for Leapfrog time stepping')
+                "timestep must be constant for Leapfrog time stepping"
+            )
 
 
 def step_leapfrog(
-        old_state, state, tendencies, timestep, asselin_strength=0.05,
-        alpha=1.):
+    old_state, state, tendencies, timestep, asselin_strength=0.05, alpha=1.0
+):
     """
     Steps the model state forward in time using the given tendencies and the
     leapfrog time scheme, with a Robert-Asselin time filter.
@@ -308,19 +328,25 @@ def step_leapfrog(
     new_state = {}
     for key in tendencies.keys():
         new_state[key] = (
-            old_state[key] + 2*tendencies[key]*timestep.total_seconds())
-        filter_influence = 0.5*asselin_strength*(
-            old_state[key] - 2*state[key] + new_state[key])
+            old_state[key] + 2 * tendencies[key] * timestep.total_seconds()
+        )
+        filter_influence = (
+            0.5
+            * asselin_strength
+            * (old_state[key] - 2 * state[key] + new_state[key])
+        )
         state[key] += alpha * filter_influence
-        if alpha != 1.:
-            new_state[key] += (alpha - 1.) * filter_influence
+        if alpha != 1.0:
+            new_state[key] += (alpha - 1.0) * filter_influence
     return state, new_state
 
 
 def step_forward_euler(state, tendencies, timestep):
     return_state = {}
     for key in tendencies.keys():
-        return_state[key] = state[key] + tendencies[key]*timestep.total_seconds()
+        return_state[key] = (
+            state[key] + tendencies[key] * timestep.total_seconds()
+        )
     return return_state
 
 
@@ -333,7 +359,7 @@ def second_bashforth(state, tendencies_list, timestep):
     return_state = {}
     for key in tendencies_list[0].keys():
         return_state[key] = state[key] + timestep.total_seconds() * (
-            1.5*tendencies_list[-1][key] - 0.5*tendencies_list[-2][key]
+            1.5 * tendencies_list[-1][key] - 0.5 * tendencies_list[-2][key]
         )
     return return_state
 
@@ -346,8 +372,9 @@ def third_bashforth(state, tendencies_list, timestep):
     return_state = {}
     for key in tendencies_list[0].keys():
         return_state[key] = state[key] + timestep.total_seconds() * (
-            23./12*tendencies_list[-1][key] - 4./3*tendencies_list[-2][key] +
-            5./12*tendencies_list[-3][key]
+            23.0 / 12 * tendencies_list[-1][key]
+            - 4.0 / 3 * tendencies_list[-2][key]
+            + 5.0 / 12 * tendencies_list[-3][key]
         )
     return return_state
 
@@ -360,7 +387,9 @@ def fourth_bashforth(state, tendencies_list, timestep):
     return_state = {}
     for key in tendencies_list[0].keys():
         return_state[key] = state[key] + timestep.total_seconds() * (
-            55./24*tendencies_list[-1][key] - 59./24*tendencies_list[-2][key] +
-            37./24*tendencies_list[-3][key] - 3./8*tendencies_list[-4][key]
+            55.0 / 24 * tendencies_list[-1][key]
+            - 59.0 / 24 * tendencies_list[-2][key]
+            + 37.0 / 24 * tendencies_list[-3][key]
+            - 3.0 / 8 * tendencies_list[-4][key]
         )
     return return_state

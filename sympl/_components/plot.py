@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 from .._core.base_components import Monitor
-from .._core.exceptions import DependencyError
 from .._core.dataarray import DataArray
+from .._core.exceptions import DependencyError
 
 
 def copy_state(state):
@@ -8,8 +9,12 @@ def copy_state(state):
     for name, quantity in state.items():
         if isinstance(quantity, DataArray):
             return_state[name] = DataArray(
-                quantity.values.copy(), quantity.coords, quantity.dims,
-                quantity.name, quantity.attrs)
+                quantity.values.copy(),
+                quantity.coords,
+                quantity.dims,
+                quantity.name,
+                quantity.attrs,
+            )
         else:
             return_state[name] = quantity
     return return_state
@@ -39,7 +44,8 @@ class PlotFunctionMonitor(Monitor):
             import matplotlib.pyplot as plt
         except ImportError:
             raise DependencyError(
-                'matplotlib must be installed to use PlotFunctionMonitor')
+                "matplotlib must be installed to use PlotFunctionMonitor"
+            )
         if interactive:
             plt.ion()
             self._fig = plt.figure()

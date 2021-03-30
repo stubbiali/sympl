@@ -1,5 +1,9 @@
+# -*- coding: utf-8 -*-
 from .._core.base_components import (
-    TendencyComponent, DiagnosticComponent, ImplicitTendencyComponent, Stepper
+    DiagnosticComponent,
+    ImplicitTendencyComponent,
+    Stepper,
+    TendencyComponent,
 )
 
 
@@ -19,12 +23,14 @@ class ScalingWrapper(object):
     >>>         'air_temperature' = 1.5})
     """
 
-    def __init__(self,
-                 component,
-                 input_scale_factors=None,
-                 output_scale_factors=None,
-                 tendency_scale_factors=None,
-                 diagnostic_scale_factors=None):
+    def __init__(
+        self,
+        component,
+        input_scale_factors=None,
+        output_scale_factors=None,
+        tendency_scale_factors=None,
+        diagnostic_scale_factors=None,
+    ):
         """
         Initializes the ScaledInputOutputWrapper object.
 
@@ -59,11 +65,17 @@ class ScalingWrapper(object):
             input/output/tendency for this component.
         """
         if not any(
-                isinstance(component, t) for t in [
-                    DiagnosticComponent, TendencyComponent, ImplicitTendencyComponent, Stepper]):
+            isinstance(component, t)
+            for t in [
+                DiagnosticComponent,
+                TendencyComponent,
+                ImplicitTendencyComponent,
+                Stepper,
+            ]
+        ):
             raise TypeError(
-                'component must be a component type (DiagnosticComponent, TendencyComponent, '
-                'ImplicitTendencyComponent, or Stepper)'
+                "component must be a component type (DiagnosticComponent, TendencyComponent, "
+                "ImplicitTendencyComponent, or Stepper)"
             )
 
         self._component = component
@@ -73,47 +85,62 @@ class ScalingWrapper(object):
             for input_field in input_scale_factors.keys():
                 if input_field not in component.input_properties.keys():
                     raise ValueError(
-                        "{} is not a valid input quantity.".format(input_field))
+                        "{} is not a valid input quantity.".format(input_field)
+                    )
 
             self._input_scale_factors = input_scale_factors
 
         self._diagnostic_scale_factors = dict()
         if diagnostic_scale_factors is not None:
-            if not hasattr(component, 'diagnostic_properties'):
+            if not hasattr(component, "diagnostic_properties"):
                 raise TypeError(
-                    'Cannot apply diagnostic scale factors to component without '
-                    'diagnostic output.')
+                    "Cannot apply diagnostic scale factors to component without "
+                    "diagnostic output."
+                )
             self._ensure_fields_have_properties(
-                diagnostic_scale_factors, component.diagnostic_properties, 'diagnostic')
+                diagnostic_scale_factors,
+                component.diagnostic_properties,
+                "diagnostic",
+            )
             self._diagnostic_scale_factors = diagnostic_scale_factors
 
         self._output_scale_factors = dict()
         if output_scale_factors is not None:
-            if not hasattr(component, 'output_properties'):
+            if not hasattr(component, "output_properties"):
                 raise TypeError(
-                    'Cannot apply output scale factors to component without '
-                    'output_properties.')
+                    "Cannot apply output scale factors to component without "
+                    "output_properties."
+                )
             self._ensure_fields_have_properties(
-                output_scale_factors, component.output_properties, 'output')
+                output_scale_factors, component.output_properties, "output"
+            )
             self._output_scale_factors = output_scale_factors
 
         self._tendency_scale_factors = dict()
         if tendency_scale_factors is not None:
-            if not hasattr(component, 'tendency_properties'):
+            if not hasattr(component, "tendency_properties"):
                 raise TypeError(
-                    'Cannot apply tendency scale factors to component that does '
-                    'not output tendencies.')
+                    "Cannot apply tendency scale factors to component that does "
+                    "not output tendencies."
+                )
             self._ensure_fields_have_properties(
-                tendency_scale_factors, component.tendency_properties, 'tendency')
+                tendency_scale_factors,
+                component.tendency_properties,
+                "tendency",
+            )
             self._tendency_scale_factors = tendency_scale_factors
 
     def _ensure_fields_have_properties(
-            self, scale_factors, properties, properties_name):
+        self, scale_factors, properties, properties_name
+    ):
         for field in scale_factors.keys():
             if field not in properties.keys():
                 raise ValueError(
                     "{} is not a {} quantity in the given component"
-                    ", but was given a scale factor.".format(field, properties_name))
+                    ", but was given a scale factor.".format(
+                        field, properties_name
+                    )
+                )
 
     def __getattr__(self, item):
         return getattr(self._component, item)
@@ -136,20 +163,22 @@ class ScalingWrapper(object):
             The return values of the underlying component.
         """
         scaled_state = {}
-        if 'time' in state:
-            scaled_state['time'] = state['time']
+        if "time" in state:
+            scaled_state["time"] = state["time"]
 
         for input_field in self.input_properties.keys():
             if input_field in self._input_scale_factors:
                 scale_factor = self._input_scale_factors[input_field]
-                scaled_state[input_field] = state[input_field]*float(scale_factor)
+                scaled_state[input_field] = state[input_field] * float(
+                    scale_factor
+                )
                 scaled_state[input_field].attrs = state[input_field].attrs
             else:
                 scaled_state[input_field] = state[input_field]
 
         if isinstance(self._component, Stepper):
             if timestep is None:
-                raise TypeError('Must give timestep to call Stepper.')
+                raise TypeError("Must give timestep to call Stepper.")
             diagnostics, new_state = self._component(scaled_state, timestep)
             for name in self._output_scale_factors.keys():
                 scale_factor = self._output_scale_factors[name]
@@ -169,7 +198,9 @@ class ScalingWrapper(object):
             return tendencies, diagnostics
         elif isinstance(self._component, ImplicitTendencyComponent):
             if timestep is None:
-                raise TypeError('Must give timestep to call ImplicitTendencyComponent.')
+                raise TypeError(
+                    "Must give timestep to call ImplicitTendencyComponent."
+                )
             tendencies, diagnostics = self._component(scaled_state, timestep)
             for tend_field in self._tendency_scale_factors.keys():
                 scale_factor = self._tendency_scale_factors[tend_field]
@@ -186,7 +217,8 @@ class ScalingWrapper(object):
             return diagnostics
         else:  # Should never reach this
             raise RuntimeError(
-                'Unknown component type, seems to be a bug in ScalingWrapper')
+                "Unknown component type, seems to be a bug in ScalingWrapper"
+            )
 
 
 class UpdateFrequencyWrapper(object):
@@ -239,17 +271,19 @@ class UpdateFrequencyWrapper(object):
         *args
             The return values of the underlying component.
         """
-        if ((self._last_update_time is None) or
-                (state['time'] >= self._last_update_time +
-                 self._update_timedelta)):
+        if (self._last_update_time is None) or (
+            state["time"] >= self._last_update_time + self._update_timedelta
+        ):
             if timestep is not None:
                 try:
-                    self._cached_output = self.component(state, timestep, **kwargs)
+                    self._cached_output = self.component(
+                        state, timestep, **kwargs
+                    )
                 except TypeError:
                     self._cached_output = self.component(state, **kwargs)
             else:
                 self._cached_output = self.component(state, **kwargs)
-            self._last_update_time = state['time']
+            self._last_update_time = state["time"]
         return self._cached_output
 
     def __getattr__(self, item):

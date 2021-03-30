@@ -7,9 +7,9 @@ flake8>=2.6.0
 ipdb
 ipython
 mock>=2.0.0
-Sphinx>=1.4.8
-PyYAML>=3.11
-pytest>=2.9.2
 pytest-cov>=2.4.0
+pytest>=2.9.2
+PyYAML>=3.11
+Sphinx>=1.4.8
 tox>=2.3.1
 watchdog>=0.8.3

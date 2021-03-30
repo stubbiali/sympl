@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+
 from setuptools import setup
 
 if __name__ == "__main__":

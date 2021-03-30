@@ -1,11 +1,20 @@
-from datetime import timedelta, datetime
+# -*- coding: utf-8 -*-
 import unittest
-from sympl import (
-    TendencyComponent, Stepper, DiagnosticComponent, UpdateFrequencyWrapper, ScalingWrapper,
-    TimeDifferencingWrapper, DataArray, ImplicitTendencyComponent
-)
-import pytest
+from datetime import datetime, timedelta
+
 import numpy as np
+import pytest
+
+from sympl import (
+    DataArray,
+    DiagnosticComponent,
+    ImplicitTendencyComponent,
+    ScalingWrapper,
+    Stepper,
+    TendencyComponent,
+    TimeDifferencingWrapper,
+    UpdateFrequencyWrapper,
+)
 
 
 class MockTendencyComponent(TendencyComponent):
@@ -15,8 +24,14 @@ class MockTendencyComponent(TendencyComponent):
     tendency_properties = None
 
     def __init__(
-            self, input_properties, diagnostic_properties, tendency_properties,
-            diagnostic_output, tendency_output, **kwargs):
+        self,
+        input_properties,
+        diagnostic_properties,
+        tendency_properties,
+        diagnostic_output,
+        tendency_output,
+        **kwargs
+    ):
         self.input_properties = input_properties
         self.diagnostic_properties = diagnostic_properties
         self.tendency_properties = tendency_properties
@@ -39,8 +54,14 @@ class MockImplicitTendencyComponent(ImplicitTendencyComponent):
     tendency_properties = None
 
     def __init__(
-            self, input_properties, diagnostic_properties, tendency_properties,
-            diagnostic_output, tendency_output, **kwargs):
+        self,
+        input_properties,
+        diagnostic_properties,
+        tendency_properties,
+        diagnostic_output,
+        tendency_output,
+        **kwargs
+    ):
         self.input_properties = input_properties
         self.diagnostic_properties = diagnostic_properties
         self.tendency_properties = tendency_properties
@@ -64,8 +85,12 @@ class MockDiagnosticComponent(DiagnosticComponent):
     diagnostic_properties = None
 
     def __init__(
-            self, input_properties, diagnostic_properties, diagnostic_output,
-            **kwargs):
+        self,
+        input_properties,
+        diagnostic_properties,
+        diagnostic_output,
+        **kwargs
+    ):
         self.input_properties = input_properties
         self.diagnostic_properties = diagnostic_properties
         self.diagnostic_output = diagnostic_output
@@ -86,9 +111,14 @@ class MockStepper(Stepper):
     output_properties = None
 
     def __init__(
-            self, input_properties, diagnostic_properties, output_properties,
-            diagnostic_output, state_output,
-            **kwargs):
+        self,
+        input_properties,
+        diagnostic_properties,
+        output_properties,
+        diagnostic_output,
+        state_output,
+        **kwargs
+    ):
         self.input_properties = input_properties
         self.diagnostic_properties = diagnostic_properties
         self.output_properties = output_properties
@@ -107,7 +137,6 @@ class MockStepper(Stepper):
 
 
 class MockEmptyPrognostic(MockTendencyComponent):
-
     def __init__(self, **kwargs):
         super(MockEmptyPrognostic, self).__init__(
             input_properties={},
@@ -132,7 +161,6 @@ class MockEmptyImplicitPrognostic(MockImplicitTendencyComponent):
 
 
 class MockEmptyDiagnostic(MockDiagnosticComponent):
-
     def __init__(self, **kwargs):
         super(MockEmptyDiagnostic, self).__init__(
             input_properties={},
@@ -143,7 +171,6 @@ class MockEmptyDiagnostic(MockDiagnosticComponent):
 
 
 class MockEmptyImplicit(MockStepper):
-
     def __init__(self, **kwargs):
         super(MockEmptyImplicit, self).__init__(
             input_properties={},
@@ -156,7 +183,6 @@ class MockEmptyImplicit(MockStepper):
 
 
 class UpdateFrequencyBase(object):
-
     def get_component(self):
         raise NotImplementedError()
 
@@ -164,47 +190,61 @@ class UpdateFrequencyBase(object):
         raise NotImplementedError()
 
     def test_set_update_frequency_calls_initially(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(hours=0)}
+        state = {"time": timedelta(hours=0)}
         result = self.call_component(component, state)
         assert component.times_called == 1
 
     def test_set_update_frequency_does_not_repeat_call_at_same_timedelta(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(hours=0)}
+        state = {"time": timedelta(hours=0)}
         result = self.call_component(component, state)
         result = self.call_component(component, state)
         assert component.times_called == 1
 
     def test_set_update_frequency_does_not_repeat_call_at_same_datetime(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        state = {'time': datetime(2010, 1, 1)}
+        state = {"time": datetime(2010, 1, 1)}
         result = self.call_component(component, state)
         result = self.call_component(component, state)
         assert component.times_called == 1
 
     def test_set_update_frequency_updates_result_when_equal(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        result = self.call_component(component, {'time': timedelta(hours=0)})
-        result = self.call_component(component, {'time': timedelta(hours=1)})
+        result = self.call_component(component, {"time": timedelta(hours=0)})
+        result = self.call_component(component, {"time": timedelta(hours=1)})
         assert component.times_called == 2
 
     def test_set_update_frequency_updates_result_when_greater(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        result = self.call_component(component, {'time': timedelta(hours=0)})
-        result = self.call_component(component, {'time': timedelta(hours=2)})
+        result = self.call_component(component, {"time": timedelta(hours=0)})
+        result = self.call_component(component, {"time": timedelta(hours=2)})
         assert component.times_called == 2
 
     def test_set_update_frequency_does_not_update_when_less(self):
-        component = UpdateFrequencyWrapper(self.get_component(), timedelta(hours=1))
+        component = UpdateFrequencyWrapper(
+            self.get_component(), timedelta(hours=1)
+        )
         assert isinstance(component, self.component_type)
-        result = self.call_component(component, {'time': timedelta(hours=0)})
-        result = self.call_component(component, {'time': timedelta(minutes=59)})
+        result = self.call_component(component, {"time": timedelta(hours=0)})
+        result = self.call_component(
+            component, {"time": timedelta(minutes=59)}
+        )
         assert component.times_called == 1
 
 
@@ -219,7 +259,9 @@ class PrognosticUpdateFrequencyTests(unittest.TestCase, UpdateFrequencyBase):
         return component(state)
 
 
-class ImplicitPrognosticUpdateFrequencyTests(unittest.TestCase, UpdateFrequencyBase):
+class ImplicitPrognosticUpdateFrequencyTests(
+    unittest.TestCase, UpdateFrequencyBase
+):
 
     component_type = ImplicitTendencyComponent
 
@@ -264,20 +306,14 @@ def test_scaled_component_wrong_type():
 
 
 class ScalingInputMixin(object):
-
     def test_inputs_no_scaling(self):
         self.input_properties = {
-            'input1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
+            "input1": {"dims": ["dim1"], "units": "m",},
         }
         state = {
-            'time': timedelta(0),
-            'input1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "time": timedelta(0),
+            "input1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
         }
         base_component = self.get_component()
@@ -285,375 +321,243 @@ class ScalingInputMixin(object):
         assert isinstance(component, self.component_type)
         self.call_component(component, state)
         assert base_component.state_given.keys() == state.keys()
-        assert np.all(base_component.state_given['input1'] == state['input1'].values)
+        assert np.all(
+            base_component.state_given["input1"] == state["input1"].values
+        )
 
     def test_inputs_one_scaling(self):
         self.input_properties = {
-            'input1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
-            'input2': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
+            "input1": {"dims": ["dim1"], "units": "m",},
+            "input2": {"dims": ["dim1"], "units": "m",},
         }
         state = {
-            'time': timedelta(0),
-            'input1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "time": timedelta(0),
+            "input1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
-            'input2': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "input2": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
         }
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            input_scale_factors={
-                'input1': 10.
-            })
+            base_component, input_scale_factors={"input1": 10.0}
+        )
         assert isinstance(component, self.component_type)
         self.call_component(component, state)
         assert base_component.state_given.keys() == state.keys()
-        assert np.all(base_component.state_given['input1'] == state['input1'].values * 10.)
-        assert np.all(base_component.state_given['input2'] == state['input2'].values)
+        assert np.all(
+            base_component.state_given["input1"]
+            == state["input1"].values * 10.0
+        )
+        assert np.all(
+            base_component.state_given["input2"] == state["input2"].values
+        )
 
     def test_inputs_two_scalings(self):
         self.input_properties = {
-            'input1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
-            'input2': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
+            "input1": {"dims": ["dim1"], "units": "m",},
+            "input2": {"dims": ["dim1"], "units": "m",},
         }
         state = {
-            'time': timedelta(0),
-            'input1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "time": timedelta(0),
+            "input1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
-            'input2': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "input2": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
         }
         base_component = self.get_component()
         component = ScalingWrapper(
             base_component,
-            input_scale_factors={
-                'input1': 10.,
-                'input2': 5.,
-            })
+            input_scale_factors={"input1": 10.0, "input2": 5.0,},
+        )
         assert isinstance(component, self.component_type)
         self.call_component(component, state)
         assert base_component.state_given.keys() == state.keys()
-        assert np.all(base_component.state_given['input1'] == 10.)
-        assert np.all(base_component.state_given['input2'] == 5.)
+        assert np.all(base_component.state_given["input1"] == 10.0)
+        assert np.all(base_component.state_given["input2"] == 5.0)
 
     def test_inputs_one_scaling_with_unit_conversion(self):
         self.input_properties = {
-            'input1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
-            'input2': {
-                'dims': ['dim1'],
-                'units': 'm',
-            },
+            "input1": {"dims": ["dim1"], "units": "m",},
+            "input2": {"dims": ["dim1"], "units": "m",},
         }
         state = {
-            'time': timedelta(0),
-            'input1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'km'}
+            "time": timedelta(0),
+            "input1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "km"}
             ),
-            'input2': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
+            "input2": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
             ),
         }
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            input_scale_factors={
-                'input1': 0.5
-            })
+            base_component, input_scale_factors={"input1": 0.5}
+        )
         assert isinstance(component, self.component_type)
         self.call_component(component, state)
         assert base_component.state_given.keys() == state.keys()
-        assert np.all(base_component.state_given['input1'] == 500.)
-        assert np.all(base_component.state_given['input2'] == 1.)
+        assert np.all(base_component.state_given["input1"] == 500.0)
+        assert np.all(base_component.state_given["input2"] == 1.0)
 
 
 class ScalingOutputMixin(object):
-
     def test_output_no_scaling(self):
-        self.output_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
-        }
-        self.output_state = {
-            'diag1': np.ones([10])
-        }
+        self.output_properties = {"diag1": {"dims": ["dim1"], "units": "m",}}
+        self.output_state = {"diag1": np.ones([10])}
         base_component = self.get_component()
-        component = ScalingWrapper(
-            base_component,
-            output_scale_factors={},
-        )
+        component = ScalingWrapper(base_component, output_scale_factors={},)
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
+        state = {"time": timedelta(0)}
         outputs = self.get_outputs(self.call_component(component, state))
         assert outputs.keys() == self.output_state.keys()
-        assert np.all(outputs['diag1'] == 1.)
+        assert np.all(outputs["diag1"] == 1.0)
 
     def test_output_one_scaling(self):
-        self.output_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
-        }
-        self.output_state = {
-            'diag1': np.ones([10])
-        }
+        self.output_properties = {"diag1": {"dims": ["dim1"], "units": "m",}}
+        self.output_state = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            output_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, output_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
-        outputs = self.get_outputs(
-            self.call_component(component, state))
+        state = {"time": timedelta(0)}
+        outputs = self.get_outputs(self.call_component(component, state))
         assert outputs.keys() == self.output_state.keys()
-        assert np.all(outputs['diag1'] == 10.)
+        assert np.all(outputs["diag1"] == 10.0)
 
     def test_output_no_scaling_when_input_scaled(self):
-        self.input_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm'
-            }
-        }
-        self.output_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
-        }
-        self.output_state = {
-            'diag1': np.ones([10])
-        }
+        self.input_properties = {"diag1": {"dims": ["dim1"], "units": "m"}}
+        self.output_properties = {"diag1": {"dims": ["dim1"], "units": "m",}}
+        self.output_state = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            input_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, input_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
         state = {
-            'time': timedelta(0),
-            'diag1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
-            )
+            "time": timedelta(0),
+            "diag1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
+            ),
         }
-        outputs = self.get_outputs(
-            self.call_component(component, state))
+        outputs = self.get_outputs(self.call_component(component, state))
         assert outputs.keys() == self.output_state.keys()
-        assert np.all(outputs['diag1'] == 1.)
+        assert np.all(outputs["diag1"] == 1.0)
 
 
 class ScalingDiagnosticMixin(object):
-
     def test_diagnostic_no_scaling(self):
         self.diagnostic_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
+            "diag1": {"dims": ["dim1"], "units": "m",}
         }
-        self.diagnostic_output = {
-            'diag1': np.ones([10])
-        }
+        self.diagnostic_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            diagnostic_scale_factors={},
+            base_component, diagnostic_scale_factors={},
         )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
-        diagnostics = self.get_diagnostics(self.call_component(component, state))
+        state = {"time": timedelta(0)}
+        diagnostics = self.get_diagnostics(
+            self.call_component(component, state)
+        )
         assert diagnostics.keys() == self.diagnostic_output.keys()
-        assert np.all(diagnostics['diag1'] == 1.)
+        assert np.all(diagnostics["diag1"] == 1.0)
 
     def test_diagnostic_one_scaling(self):
         self.diagnostic_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
+            "diag1": {"dims": ["dim1"], "units": "m",}
         }
-        self.diagnostic_output = {
-            'diag1': np.ones([10])
-        }
+        self.diagnostic_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            diagnostic_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, diagnostic_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
+        state = {"time": timedelta(0)}
         diagnostics = self.get_diagnostics(
-            self.call_component(component, state))
+            self.call_component(component, state)
+        )
         assert diagnostics.keys() == self.diagnostic_output.keys()
-        assert np.all(diagnostics['diag1'] == 10.)
+        assert np.all(diagnostics["diag1"] == 10.0)
 
     def test_diagnostic_no_scaling_when_input_scaled(self):
-        self.input_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm'
-            }
-        }
+        self.input_properties = {"diag1": {"dims": ["dim1"], "units": "m"}}
         self.diagnostic_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
+            "diag1": {"dims": ["dim1"], "units": "m",}
         }
-        self.diagnostic_output = {
-            'diag1': np.ones([10])
-        }
+        self.diagnostic_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            input_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, input_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
         state = {
-            'time': timedelta(0),
-            'diag1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
-            )
+            "time": timedelta(0),
+            "diag1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
+            ),
         }
         diagnostics = self.get_diagnostics(
-            self.call_component(component, state))
+            self.call_component(component, state)
+        )
         assert diagnostics.keys() == self.diagnostic_output.keys()
-        assert np.all(diagnostics['diag1'] == 1.)
+        assert np.all(diagnostics["diag1"] == 1.0)
 
 
 class ScalingTendencyMixin(object):
-
     def test_tendency_no_scaling(self):
-        self.tendency_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
-        }
-        self.tendency_output = {
-            'diag1': np.ones([10])
-        }
+        self.tendency_properties = {"diag1": {"dims": ["dim1"], "units": "m",}}
+        self.tendency_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
-        component = ScalingWrapper(
-            base_component,
-            tendency_scale_factors={},
-        )
+        component = ScalingWrapper(base_component, tendency_scale_factors={},)
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
+        state = {"time": timedelta(0)}
         tendencies = self.get_tendencies(self.call_component(component, state))
         assert tendencies.keys() == self.tendency_output.keys()
-        assert np.all(tendencies['diag1'] == 1.)
+        assert np.all(tendencies["diag1"] == 1.0)
 
     def test_tendency_one_scaling(self):
-        self.tendency_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm',
-            }
-        }
-        self.tendency_output = {
-            'diag1': np.ones([10])
-        }
+        self.tendency_properties = {"diag1": {"dims": ["dim1"], "units": "m",}}
+        self.tendency_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            tendency_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, tendency_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
-        state = {'time': timedelta(0)}
-        tendencies = self.get_tendencies(
-            self.call_component(component, state))
+        state = {"time": timedelta(0)}
+        tendencies = self.get_tendencies(self.call_component(component, state))
         assert tendencies.keys() == self.tendency_output.keys()
-        assert np.all(tendencies['diag1'] == 10.)
+        assert np.all(tendencies["diag1"] == 10.0)
 
     def test_tendency_no_scaling_when_input_scaled(self):
-        self.input_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm'
-            }
-        }
+        self.input_properties = {"diag1": {"dims": ["dim1"], "units": "m"}}
         self.tendency_properties = {
-            'diag1': {
-                'dims': ['dim1'],
-                'units': 'm/s',
-            }
+            "diag1": {"dims": ["dim1"], "units": "m/s",}
         }
-        self.tendency_output = {
-            'diag1': np.ones([10])
-        }
+        self.tendency_output = {"diag1": np.ones([10])}
         base_component = self.get_component()
         component = ScalingWrapper(
-            base_component,
-            input_scale_factors={
-                'diag1': 10.,
-            },
+            base_component, input_scale_factors={"diag1": 10.0,},
         )
         assert isinstance(component, self.component_type)
         state = {
-            'time': timedelta(0),
-            'diag1': DataArray(
-                np.ones([10]),
-                dims=['dim1'],
-                attrs={'units': 'm'}
-            )
+            "time": timedelta(0),
+            "diag1": DataArray(
+                np.ones([10]), dims=["dim1"], attrs={"units": "m"}
+            ),
         }
-        tendencies = self.get_tendencies(
-            self.call_component(component, state))
+        tendencies = self.get_tendencies(self.call_component(component, state))
         assert tendencies.keys() == self.tendency_output.keys()
-        assert np.all(tendencies['diag1'] == 1.)
+        assert np.all(tendencies["diag1"] == 1.0)
 
 
 class DiagnosticScalingTests(
-    unittest.TestCase, ScalingInputMixin, ScalingDiagnosticMixin):
+    unittest.TestCase, ScalingInputMixin, ScalingDiagnosticMixin
+):
 
     component_type = DiagnosticComponent
 
@@ -666,7 +570,7 @@ class DiagnosticScalingTests(
         return MockDiagnosticComponent(
             self.input_properties,
             self.diagnostic_properties,
-            self.diagnostic_output
+            self.diagnostic_output,
         )
 
     def get_diagnostics(self, output):
@@ -677,7 +581,11 @@ class DiagnosticScalingTests(
 
 
 class PrognosticScalingTests(
-    unittest.TestCase, ScalingInputMixin, ScalingDiagnosticMixin, ScalingTendencyMixin):
+    unittest.TestCase,
+    ScalingInputMixin,
+    ScalingDiagnosticMixin,
+    ScalingTendencyMixin,
+):
 
     component_type = TendencyComponent
 
@@ -708,8 +616,11 @@ class PrognosticScalingTests(
 
 
 class ImplicitPrognosticScalingTests(
-    unittest.TestCase, ScalingInputMixin, ScalingDiagnosticMixin,
-    ScalingTendencyMixin):
+    unittest.TestCase,
+    ScalingInputMixin,
+    ScalingDiagnosticMixin,
+    ScalingTendencyMixin,
+):
 
     component_type = ImplicitTendencyComponent
 
@@ -740,8 +651,11 @@ class ImplicitPrognosticScalingTests(
 
 
 class ImplicitScalingTests(
-    unittest.TestCase, ScalingInputMixin, ScalingDiagnosticMixin,
-    ScalingOutputMixin):
+    unittest.TestCase,
+    ScalingInputMixin,
+    ScalingDiagnosticMixin,
+    ScalingOutputMixin,
+):
 
     component_type = Stepper
 
@@ -770,5 +684,6 @@ class ImplicitScalingTests(
     def call_component(self, component, state):
         return component(state, timedelta(hours=1))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     pytest.main([__file__])
