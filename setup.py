@@ -1,50 +1,10 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys
 from setuptools import setup
 
-with open('README.rst') as readme_file:
-    readme = readme_file.read()
+if __name__ == "__main__":
+    if sys.version_info.major < 3:
+        print("Python 3.x is required.")
+        sys.exit(1)
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
-
-requirements = [
-    'numpy>=1.12',
-    'pint>=0.7.0',
-    'xarray>=0.9.3',
-    'six',
-]
-
-test_requirements = [
-    'pytest>=2.9.2',
-    'mock>=2.0.0',
-]
-
-setup(
-    name='sympl',
-    version='0.4.0',
-    description='Sympl is a Toolkit for building Earth system models in Python.',
-    long_description=readme + '\n\n' + history,
-    author="Jeremy McGibbon",
-    author_email='mcgibbon@uw.edu',
-    url='https://github.com/mcgibbon/sympl',
-    packages=['sympl'],
-    include_package_data=True,
-    install_requires=requirements,
-    license="BSD license",
-    zip_safe=True,
-    keywords='sympl',
-    classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: BSD License',
-        'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-    ],
-    test_suite='tests',
-    tests_require=test_requirements
-)
+    setup(use_scm_version=True)
