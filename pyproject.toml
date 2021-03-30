@@ -27,3 +27,18 @@ exclude = '''
   | profiling
 )/
 '''
+
+[tool.isort]
+known_third_party = [
+    "cryptography",
+    "mock",
+    "numpy",
+    "pint",
+    "pkg_resources",
+    "pytest",
+    "pytz",
+    "setuptools",
+    "six",
+    "xarray",
+    "yaml"
+]
