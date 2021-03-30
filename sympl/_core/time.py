@@ -32,7 +32,7 @@
 from datetime import datetime as real_datetime
 from datetime import timedelta
 
-from .exceptions import DependencyError
+from sympl._core.exceptions import DependencyError
 
 try:
     import cftime as ct

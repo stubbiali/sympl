@@ -30,10 +30,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
-
-from .dataarray import DataArray
-from .exceptions import InvalidPropertyDictError
-from .wildcard import (
+from sympl._core.dataarray import DataArray
+from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.wildcard import (
     expand_array_wildcard_dims,
     fill_dims_wildcard,
     get_wildcard_matches_and_dim_lengths,

@@ -29,9 +29,9 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from .._core.dataarray import DataArray
-from .._core.state import add, copy_untouched_quantities, multiply
-from .._core.tendencystepper import TendencyStepper
+from sympl._core.dataarray import DataArray
+from sympl._core.state import add, copy_untouched_quantities, multiply
+from sympl._core.tendencystepper import TendencyStepper
 
 
 class SSPRungeKutta(TendencyStepper):

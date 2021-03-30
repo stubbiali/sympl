@@ -29,14 +29,14 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from .basic import (
+from sympl._components.basic import (
     ConstantDiagnosticComponent,
     ConstantTendencyComponent,
     RelaxationTendencyComponent,
     TimeDifferencingWrapper,
 )
-from .netcdf import NetCDFMonitor, RestartMonitor
-from .plot import PlotFunctionMonitor
+from sympl._components.netcdf import NetCDFMonitor, RestartMonitor
+from sympl._components.plot import PlotFunctionMonitor
 
 __all__ = (
     PlotFunctionMonitor,

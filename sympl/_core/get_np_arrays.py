@@ -30,9 +30,8 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
-
-from .exceptions import InvalidStateError
-from .wildcard import (
+from sympl._core.exceptions import InvalidStateError
+from sympl._core.wildcard import (
     flatten_wildcard_dims,
     get_wildcard_matches_and_dim_lengths,
 )

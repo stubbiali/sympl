@@ -30,10 +30,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
-
-from .exceptions import InvalidStateError
-from .restore_dataarray import extract_output_dims_properties
-from .tracers import get_tracer_names
+from sympl._core.exceptions import InvalidStateError
+from sympl._core.restore_dataarray import extract_output_dims_properties
+from sympl._core.tracers import get_tracer_names
 
 
 def initialize_numpy_arrays_with_properties(

@@ -30,8 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
-
-from .exceptions import InvalidPropertyDictError, InvalidStateError
+from sympl._core.exceptions import InvalidPropertyDictError, InvalidStateError
 
 
 def get_wildcard_matches_and_dim_lengths(state, property_dictionary):

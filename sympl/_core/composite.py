@@ -29,15 +29,18 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from .base_components import (
+from sympl._core.base_components import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
     Monitor,
     TendencyComponent,
 )
-from .combine_properties import combine_component_properties
-from .exceptions import InvalidPropertyDictError
-from .util import ensure_no_shared_keys, update_dict_by_adding_another
+from sympl._core.combine_properties import combine_component_properties
+from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.util import (
+    ensure_no_shared_keys,
+    update_dict_by_adding_another,
+)
 
 
 class InputPropertiesCompositeMixin(object):

@@ -31,21 +31,20 @@
 #
 import os
 from datetime import timedelta
-
 import numpy as np
-import xarray as xr
 from six import string_types
-
-from .._core.base_components import Monitor
-from .._core.dataarray import DataArray
-from .._core.exceptions import DependencyError, InvalidStateError
-from .._core.units import from_unit_to_another
-from .._core.util import datetime64_to_datetime, same_list
+import xarray as xr
 
 try:
     import netCDF4 as nc4
 except ImportError:
     nc4 = None
+
+from sympl._core.base_components import Monitor
+from sympl._core.dataarray import DataArray
+from sympl._core.exceptions import DependencyError, InvalidStateError
+from sympl._core.units import from_unit_to_another
+from sympl._core.util import datetime64_to_datetime, same_list
 
 
 class NetCDFMonitor(Monitor):

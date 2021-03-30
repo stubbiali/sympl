@@ -32,18 +32,17 @@
 import abc
 
 from six import add_metaclass
-
-from .exceptions import (
+from sympl._core.exceptions import (
     ComponentExtraOutputError,
     ComponentMissingOutputError,
     InvalidPropertyDictError,
     InvalidStateError,
 )
-from .get_np_arrays import get_numpy_arrays_with_properties
-from .restore_dataarray import restore_data_arrays_with_properties
-from .time import timedelta
-from .tracers import TracerPacker
-from .units import units_are_compatible
+from sympl._core.get_np_arrays import get_numpy_arrays_with_properties
+from sympl._core.restore_dataarray import restore_data_arrays_with_properties
+from sympl._core.time import timedelta
+from sympl._core.tracers import TracerPacker
+from sympl._core.units import units_are_compatible
 
 try:
     from inspect import getfullargspec as getargspec

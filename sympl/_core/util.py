@@ -32,9 +32,8 @@
 from datetime import datetime
 
 import numpy as np
-
-from .dataarray import DataArray
-from .exceptions import InvalidStateError, SharedKeyError
+from sympl._core.dataarray import DataArray
+from sympl._core.exceptions import InvalidStateError, SharedKeyError
 
 try:
     from numba import jit

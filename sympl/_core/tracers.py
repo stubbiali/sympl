@@ -30,11 +30,10 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
-
-from .exceptions import InvalidPropertyDictError
-from .get_np_arrays import get_numpy_arrays_with_properties
-from .restore_dataarray import restore_data_arrays_with_properties
-from .units import units_are_same
+from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.get_np_arrays import get_numpy_arrays_with_properties
+from sympl._core.restore_dataarray import restore_data_arrays_with_properties
+from sympl._core.units import units_are_same
 
 _tracer_unit_dict = {}
 _tracer_names = []

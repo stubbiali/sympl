@@ -31,8 +31,7 @@
 #
 import xarray as xr
 from pint.errors import DimensionalityError
-
-from .units import data_array_to_units as to_units_function
+from sympl._core.units import data_array_to_units as to_units_function
 
 
 class DataArray(xr.DataArray):

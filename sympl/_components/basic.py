@@ -29,13 +29,13 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from .._core.base_components import (
+from sympl._core.base_components import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
     TendencyComponent,
 )
-from .._core.dataarray import DataArray
-from .._core.units import unit_registry as ureg
+from sympl._core.dataarray import DataArray
+from sympl._core.units import unit_registry as ureg
 
 
 class ConstantTendencyComponent(TendencyComponent):

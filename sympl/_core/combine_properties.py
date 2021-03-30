@@ -29,9 +29,9 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from .exceptions import InvalidPropertyDictError
-from .tracers import get_tracer_input_properties
-from .units import units_are_compatible
+from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.tracers import get_tracer_input_properties
+from sympl._core.units import units_are_compatible
 
 
 def combine_dims(dims1, dims2):
