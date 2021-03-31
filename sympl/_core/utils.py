@@ -30,9 +30,13 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from inspect import getfullargspec as getargspec
+from typing import Any, Callable, Dict, Sequence, TYPE_CHECKING, Union
 
 from sympl._core.data_array import DataArray
 from sympl._core.exceptions import InvalidStateError
+
+if TYPE_CHECKING:
+    from sympl._core.typing import Component
 
 try:
     from numba import jit
@@ -45,10 +49,7 @@ except ImportError:
             return signature_or_function
 
 
-# internal exceptions used only within this module
-
-
-def same_list(list1, list2):
+def same_list(list1: Sequence, list2: Sequence) -> bool:
     """Returns a boolean indicating whether the items in list1 are the same
     items present in list2 (ignoring order)."""
     return len(list1) == len(list2) and all(
@@ -56,7 +57,7 @@ def same_list(list1, list2):
     )
 
 
-def update_dict_by_adding_another(dict1, dict2):
+def update_dict_by_adding_another(dict1: Dict, dict2: Dict) -> None:
     """
     Takes two dictionaries. Add values in dict2 to the values in dict1, if
     present. If not present, create a new value in dict1 equal to the value in
@@ -94,7 +95,9 @@ def update_dict_by_adding_another(dict1, dict2):
     return  # not returning anything emphasizes that this is in-place
 
 
-def get_component_aliases(*args):
+def get_component_aliases(
+    *args: "Component",
+) -> Dict[str, Union[str, Sequence[str]]]:
     """
     Returns aliases for variables in the properties of Components (TendencyComponent,
     DiagnosticComponent, Stepper, and ImplicitTendencyComponent objects).
@@ -131,7 +134,7 @@ def get_component_aliases(*args):
     return return_dict
 
 
-def get_kwarg_defaults(func):
+def get_kwarg_defaults(func: Callable) -> Dict[str, Any]:
     return_dict = {}
     argspec = getargspec(func)
     if argspec.defaults is not None:
