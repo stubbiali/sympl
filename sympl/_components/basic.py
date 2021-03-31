@@ -34,7 +34,7 @@ from sympl._core.base_components import (
     ImplicitTendencyComponent,
     TendencyComponent,
 )
-from sympl._core.dataarray import DataArray
+from sympl._core.data_array import DataArray
 from sympl._core.units import unit_registry as ureg
 
 

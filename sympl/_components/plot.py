@@ -30,7 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from sympl._core.base_components import Monitor
-from sympl._core.dataarray import DataArray
+from sympl._core.data_array import DataArray
 from sympl._core.exceptions import DependencyError
 
 

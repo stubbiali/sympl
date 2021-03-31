@@ -29,21 +29,14 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-import numpy as np
-from sympl._core.dataarray import DataArray
+from sympl._core.checks import ensure_values_are_arrays, check_array_shape
+from sympl._core.data_array import DataArray
 from sympl._core.exceptions import InvalidPropertyDictError
 from sympl._core.wildcard import (
     expand_array_wildcard_dims,
     fill_dims_wildcard,
     get_wildcard_matches_and_dim_lengths,
 )
-
-
-def ensure_values_are_arrays(array_dict):
-    pass
-    # for name, value in array_dict.items():
-    # if not isinstance(value, np.ndarray):
-    # array_dict[name] = np.asarray(value)
 
 
 def get_alias_or_name(name, output_properties, input_properties):
@@ -57,24 +50,6 @@ def get_alias_or_name(name, output_properties, input_properties):
     else:
         raw_name = name
     return raw_name
-
-
-def check_array_shape(out_dims, raw_array, name, dim_lengths):
-    if len(out_dims) != len(raw_array.shape):
-        raise InvalidPropertyDictError(
-            "Returned array for {} has shape {} "
-            "which is incompatible with dims {} in properties".format(
-                name, raw_array.shape, out_dims
-            )
-        )
-    for dim, length in zip(out_dims, raw_array.shape):
-        if dim in dim_lengths.keys() and dim_lengths[dim] != length:
-            raise InvalidPropertyDictError(
-                "Dimension {} of quantity {} has length {}, but "
-                "another quantity has length {}".format(
-                    dim, name, length, dim_lengths[dim]
-                )
-            )
 
 
 def restore_data_arrays_with_properties(

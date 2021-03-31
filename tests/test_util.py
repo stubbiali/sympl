@@ -44,7 +44,7 @@ from sympl import (
     ensure_no_shared_keys,
 )
 from sympl._core.combine_properties import combine_dims
-from sympl._core.util import (
+from sympl._core.utils import (
     get_component_aliases,
     update_dict_by_adding_another,
 )

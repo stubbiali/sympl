@@ -64,7 +64,7 @@ from sympl._core.constants import (
     set_condensible_name,
     set_constant,
 )
-from sympl._core.dataarray import DataArray
+from sympl._core.data_array import DataArray
 from sympl._core.exceptions import (
     ComponentExtraOutputError,
     ComponentMissingOutputError,
@@ -73,10 +73,13 @@ from sympl._core.exceptions import (
     InvalidStateError,
     SharedKeyError,
 )
-from sympl._core.get_np_arrays import get_numpy_arrays_with_properties
-from sympl._core.init_np_arrays import initialize_numpy_arrays_with_properties
+from sympl._core.utils_storage import (
+    get_numpy_arrays_with_properties,
+    initialize_numpy_arrays_with_properties,
+    restore_dimensions,
+)
 from sympl._core.restore_dataarray import restore_data_arrays_with_properties
-from sympl._core.tendencystepper import TendencyStepper
+from sympl._core.tendency_stepper import TendencyStepper
 from sympl._core.time import datetime, timedelta
 from sympl._core.tracers import (
     get_tracer_input_properties,
@@ -89,12 +92,11 @@ from sympl._core.units import (
     units_are_compatible,
     units_are_same,
 )
-from sympl._core.util import (
+from sympl._core.utils import (
     ensure_no_shared_keys,
     get_component_aliases,
     get_numpy_array,
     jit,
-    restore_dimensions,
 )
 from sympl._core.wrappers import ScalingWrapper, UpdateFrequencyWrapper
 

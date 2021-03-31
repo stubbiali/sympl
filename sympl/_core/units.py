@@ -123,3 +123,39 @@ def data_array_to_units(value, units):
 
 def from_unit_to_another(value, original_units, new_units):
     return (unit_registry(original_units) * value).to(new_units).magnitude
+
+
+def get_name_with_incompatible_units(properties1, properties2):
+    """
+    If there are any keys shared by the two properties
+    dictionaries which indicate units that are incompatible with one another,
+    this returns such a key. Otherwise returns None.
+    """
+    for name in set(properties1.keys()).intersection(properties2.keys()):
+        if not units_are_compatible(
+            properties1[name]["units"], properties2[name]["units"]
+        ):
+            return name
+    return None
+
+
+def get_tendency_name_with_incompatible_units(
+    input_properties, tendency_properties
+):
+    """
+    Returns False if there are any keys shared by the two properties
+    dictionaries which indicate units that are incompatible with one another,
+    and True otherwise (if there are no conflicting unit specifications).
+    """
+    for name in set(input_properties.keys()).intersection(
+        tendency_properties.keys()
+    ):
+        if input_properties[name]["units"] == "":
+            expected_tendency_units = "s^-1"
+        else:
+            expected_tendency_units = input_properties[name]["units"] + " s^-1"
+        if not units_are_compatible(
+            expected_tendency_units, tendency_properties[name]["units"]
+        ):
+            return name
+    return None

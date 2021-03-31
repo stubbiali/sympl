@@ -51,3 +51,15 @@ class ComponentMissingOutputError(Exception):
 
 class ComponentExtraOutputError(Exception):
     pass
+
+
+class NoMatchForDirectionError(Exception):
+    pass
+
+
+class DimensionNotInOutDimsError(ValueError):
+    pass
+
+
+class ShapeMismatchError(Exception):
+    pass

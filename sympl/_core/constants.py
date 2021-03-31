@@ -29,7 +29,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from sympl._core.dataarray import DataArray
+from sympl._core.data_array import DataArray
 from sympl._core.units import is_valid_unit
 
 

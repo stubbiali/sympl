@@ -30,10 +30,16 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from datetime import datetime
+from inspect import getfullargspec as getargspec
 
 import numpy as np
-from sympl._core.dataarray import DataArray
-from sympl._core.exceptions import InvalidStateError, SharedKeyError
+from sympl._core.data_array import DataArray
+from sympl._core.exceptions import (
+    InvalidStateError,
+    SharedKeyError,
+    NoMatchForDirectionError,
+    DimensionNotInOutDimsError,
+)
 
 try:
     from numba import jit
@@ -47,18 +53,6 @@ except ImportError:
 
 
 # internal exceptions used only within this module
-
-
-class NoMatchForDirectionError(Exception):
-    pass
-
-
-class DimensionNotInOutDimsError(ValueError):
-    pass
-
-
-class ShapeMismatchError(Exception):
-    pass
 
 
 def get_numpy_array(
@@ -160,71 +154,6 @@ def get_numpy_array(
         return return_array, wildcard_matches
     else:
         return return_array
-
-
-def restore_dimensions(array, from_dims, result_like, result_attrs=None):
-    """
-    Restores a numpy array to a DataArray with similar dimensions to a reference
-    Data Array. This is meant to be the reverse of get_numpy_array.
-
-    Parameters
-    ----------
-    array : ndarray
-        The numpy array from which to create a DataArray
-    from_dims : list of str
-        The directions describing the numpy array. If being used to reverse
-        a call to get_numpy_array, this should be the same as the out_dims
-        argument used in the call to get_numpy_array.
-        'x', 'y', and 'z' indicate any axes
-        registered to those directions with
-        :py:function:`~sympl.set_direction_names`. '*' indicates an axis
-        which is the flattened collection of all dimensions not explicitly
-        listed in out_dims, including any dimensions with unknown direction.
-    result_like : DataArray
-        A reference array with the desired output dimensions of the DataArray.
-        If being used to reverse a call to get_numpy_array, this should be
-        the same as the data_array argument used in the call to get_numpy_array.
-    result_attrs : dict, optional
-        A dictionary with the desired attributes of the output DataArray. If
-        not given, no attributes will be set.
-
-    Returns
-    -------
-    data_array : DataArray
-        The output DataArray with the same dimensions as the reference
-        DataArray.
-
-    See Also
-    --------
-    :py:function:~sympl.get_numpy_array: : Retrieves a numpy array with desired
-        dimensions from a given DataArray.
-    """
-    current_dim_names = {}
-    for dim in from_dims:
-        if dim != "*":
-            current_dim_names[dim] = [dim]
-    direction_to_names = get_input_array_dim_names(
-        result_like, from_dims, current_dim_names
-    )
-    original_shape = []
-    original_dims = []
-    original_coords = []
-    for direction in from_dims:
-        if direction in direction_to_names.keys():
-            for name in direction_to_names[direction]:
-                original_shape.append(len(result_like.coords[name]))
-                original_dims.append(name)
-                original_coords.append(result_like.coords[name])
-    if np.product(array.shape) != np.product(original_shape):
-        raise ShapeMismatchError
-    data_array = DataArray(
-        np.reshape(array, original_shape),
-        dims=original_dims,
-        coords=original_coords,
-    ).transpose(*list(result_like.dims))
-    if result_attrs is not None:
-        data_array.attrs = result_attrs
-    return data_array
 
 
 def datetime64_to_datetime(dt64):
@@ -364,9 +293,7 @@ def get_slices_and_placeholder_nones(data_array, out_dims, direction_to_names):
     for direction in out_dims:
         if len(direction_to_names[direction]) == 0:
             slices_or_none.append(None)
-        elif (direction is not "*") and (
-            len(direction_to_names[direction]) > 1
-        ):
+        elif direction != "*" and len(direction_to_names[direction]) > 1:
             raise ValueError(
                 "DataArray has multiple dimensions for a single direction"
             )
@@ -433,4 +360,21 @@ def get_component_aliases(*args):
                 for name, properties in component_properties.items():
                     if "alias" in properties.keys():
                         return_dict[name] = properties["alias"]
+    return return_dict
+
+
+def option_or_default(option, default):
+    if option is None:
+        return default
+    else:
+        return option
+
+
+def get_kwarg_defaults(func):
+    return_dict = {}
+    argspec = getargspec(func)
+    if argspec.defaults is not None:
+        n = len(argspec.args) - 1
+        for i, default in enumerate(reversed(argspec.defaults)):
+            return_dict[argspec.args[n - i]] = default
     return return_dict

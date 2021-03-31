@@ -30,8 +30,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import numpy as np
+
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.get_np_arrays import get_numpy_arrays_with_properties
+from sympl._core.utils_storage import get_numpy_arrays_with_properties
 from sympl._core.restore_dataarray import restore_data_arrays_with_properties
 from sympl._core.units import units_are_same
 
@@ -264,7 +265,7 @@ class TracerPacker(object):
         out_properties = {}
         for name, properties in tracer_properties.items():
             out_properties[name] = properties.copy()
-            if multiply_unit is not "":
+            if multiply_unit != "":
                 out_properties[name]["units"] = "{} {}".format(
                     out_properties[name]["units"], multiply_unit
                 )
