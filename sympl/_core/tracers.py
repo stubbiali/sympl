@@ -32,7 +32,7 @@
 import numpy as np
 
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.utils_storage import get_numpy_arrays_with_properties
+from sympl._core.storage import get_arrays_with_properties
 from sympl._core.restore_dataarray import restore_data_arrays_with_properties
 from sympl._core.units import units_are_same
 
@@ -223,7 +223,7 @@ class TracerPacker(object):
         tracer_properties = get_tracer_input_properties(
             self._prepend_tracers, self._tracer_quantity_dims
         )
-        raw_state = get_numpy_arrays_with_properties(state, tracer_properties)
+        raw_state = get_arrays_with_properties(state, tracer_properties)
         if len(self.tracer_names) == 0:
             shape = [0 for dim in self._tracer_dims]
         else:

@@ -73,14 +73,15 @@ from sympl._core.exceptions import (
     InvalidStateError,
     SharedKeyError,
 )
-from sympl._core.utils_storage import (
-    get_numpy_arrays_with_properties,
+from sympl._core.storage import (
+    get_arrays_with_properties,
     initialize_numpy_arrays_with_properties,
     restore_dimensions,
+    get_numpy_array,
 )
 from sympl._core.restore_dataarray import restore_data_arrays_with_properties
 from sympl._core.tendency_stepper import TendencyStepper
-from sympl._core.time import datetime, timedelta
+from sympl._core.time import datetime
 from sympl._core.tracers import (
     get_tracer_input_properties,
     get_tracer_names,
@@ -93,12 +94,12 @@ from sympl._core.units import (
     units_are_same,
 )
 from sympl._core.utils import (
-    ensure_no_shared_keys,
     get_component_aliases,
-    get_numpy_array,
     jit,
 )
+from sympl._core.checks import ensure_no_shared_keys
 from sympl._core.wrappers import ScalingWrapper, UpdateFrequencyWrapper
+from sympl._core.storage import get_arrays_with_properties
 
 __all__ = (
     TendencyComponent,
@@ -138,7 +139,7 @@ __all__ = (
     get_tracer_input_properties,
     get_tracer_names,
     restore_dimensions,
-    get_numpy_arrays_with_properties,
+    get_arrays_with_properties,
     restore_data_arrays_with_properties,
     initialize_numpy_arrays_with_properties,
     get_component_aliases,
@@ -152,7 +153,6 @@ __all__ = (
     UpdateFrequencyWrapper,
     ScalingWrapper,
     datetime,
-    timedelta,
 )
 
 from pkg_resources import DistributionNotFound, get_distribution

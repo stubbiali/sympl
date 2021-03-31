@@ -32,11 +32,11 @@
 from sympl._core.checks import ensure_values_are_arrays, check_array_shape
 from sympl._core.data_array import DataArray
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.wildcard import (
-    expand_array_wildcard_dims,
+from sympl._core.dims import (
     fill_dims_wildcard,
-    get_wildcard_matches_and_dim_lengths,
+    get_wildcard_names_and_dim_lengths,
 )
+from sympl._core.storage import expand_wildcard_dims
 
 
 def get_alias_or_name(name, output_properties, input_properties):
@@ -110,7 +110,7 @@ def restore_data_arrays_with_properties(
             .difference(raw_arrays.keys())
             .union(ignore_names)
         )
-    wildcard_names, dim_lengths = get_wildcard_matches_and_dim_lengths(
+    wildcard_names, dim_lengths = get_wildcard_names_and_dim_lengths(
         input_state, input_properties
     )
     ensure_values_are_arrays(raw_arrays)
@@ -129,7 +129,7 @@ def restore_data_arrays_with_properties(
             out_dims_without_wildcard, target_shape = fill_dims_wildcard(
                 out_dims, dim_lengths, wildcard_names
             )
-            out_array = expand_array_wildcard_dims(
+            out_array = expand_wildcard_dims(
                 raw_arrays[raw_name], target_shape, name, out_dims
             )
         else:

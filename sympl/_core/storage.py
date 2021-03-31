@@ -29,21 +29,32 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from copy import deepcopy
 import numpy as np
+from typing import Tuple, Sequence
 
 # from sympl._core.tracers import get_tracer_names
-from sympl._core.exceptions import InvalidStateError, ShapeMismatchError
-from sympl._core.restore_dataarray import extract_output_dims_properties
-from sympl._core.utils import get_input_array_dim_names
-from sympl._core.wildcard import (
-    flatten_wildcard_dims,
-    get_wildcard_matches_and_dim_lengths,
+from sympl._core.checks import ensure_quantity_has_units
+from sympl._core.data_array import DataArray
+from sympl._core.exceptions import (
+    InvalidPropertyDictError,
+    InvalidStateError,
+    ShapeMismatchError,
+    DimensionNotInOutDimsError,
+)
+from sympl._core.utils import same_list
+from sympl._core.dims import (
+    get_wildcard_names_and_dim_lengths,
+    get_array_dim_names,
+    get_target_dimension_order,
+    get_slices_and_placeholder_nones,
+    get_final_shape,
 )
 
 
-def get_numpy_arrays_with_properties(state, property_dictionary):
+def get_arrays_with_properties(state, property_dictionary):
     out_dict = {}
-    wildcard_names, dim_lengths = get_wildcard_matches_and_dim_lengths(
+    wildcard_names, dim_lengths = get_wildcard_names_and_dim_lengths(
         state, property_dictionary
     )
     #  Now we actually retrieve output arrays since we know the precise out dims
@@ -63,7 +74,7 @@ def get_numpy_arrays_with_properties(state, property_dictionary):
         if has_wildcard:
             i_wildcard = out_dims.index("*")
             out_dims[i_wildcard : i_wildcard + 1] = wildcard_names
-        out_array = get_numpy_array(
+        out_array = get_array(
             quantity, out_dims=out_dims, dim_lengths=dim_lengths
         )
         if has_wildcard:
@@ -106,13 +117,6 @@ def get_array(data_array, out_dims, dim_lengths):
                 out_array = np.empty(out_shape, dtype=numpy_array.dtype)
                 out_array[:] = numpy_array
         return out_array
-
-
-def ensure_quantity_has_units(quantity, quantity_name):
-    if "units" not in quantity.attrs:
-        raise InvalidStateError(
-            "quantity {} is missing units attribute".format(quantity_name)
-        )
 
 
 def initialize_numpy_arrays_with_properties(
@@ -238,7 +242,7 @@ def restore_dimensions(array, from_dims, result_like, result_attrs=None):
     for dim in from_dims:
         if dim != "*":
             current_dim_names[dim] = [dim]
-    direction_to_names = get_input_array_dim_names(
+    direction_to_names = get_array_dim_names(
         result_like, from_dims, current_dim_names
     )
     original_shape = []
@@ -260,3 +264,156 @@ def restore_dimensions(array, from_dims, result_like, result_attrs=None):
     if result_attrs is not None:
         data_array.attrs = result_attrs
     return data_array
+
+
+def get_numpy_array(
+    data_array,
+    out_dims,
+    return_wildcard_matches=False,
+    require_wildcard_matches=None,
+):
+    """
+    Retrieve a numpy array with the desired dimensions and dimension order
+    from the given DataArray, using transpose and creating length 1 dimensions
+    as necessary.
+
+    Args
+    ----
+    data_array : DataArray
+        The object from which to retrieve data.
+    out_dims : list of str
+        The desired dimensions of the output and their order.
+        Length 1 dimensions will be created if the dimension is 'x', 'y', 'z',
+        or '*' and does not exist in data_array. 'x', 'y', and 'z' indicate any axes
+        registered to those directions with
+        :py:function:`~sympl.set_direction_names`. '*' indicates an axis
+        which is the flattened collection of all dimensions not explicitly
+        listed in out_dims, including any dimensions with unknown direction.
+    return_wildcard_matches : bool, optional
+        If True, will additionally return a dictionary whose keys are direction
+        wildcards (currently only '*') and values are lists of matched
+        dimensions in the order they appear.
+    require_wildcard_matches : dict, optional
+        A dictionary mapping wildcards to matches. If the wildcard is used in
+        out_dims, ensures that it matches the quantities present in this
+        dictionary, in the same order.
+
+    Returns
+    -------
+    numpy_array : ndarray
+        The desired array, with dimensions in the
+        correct order and length 1 dimensions created as needed.
+
+    Raises
+    ------
+    ValueError
+        If out_dims has values that are incompatible with the dimensions
+        in data_array, or data_array's dimensions are invalid in some way.
+
+    """
+    # This function was written when we had directional wildcards, and could
+    # be re-written to be simpler now that we do not.
+    if (len(data_array.values.shape) == 0) and (len(out_dims) == 0):
+        direction_to_names = {}  # required in case we need wildcard_matches
+        return_array = (
+            data_array.values
+        )  # special case, 0-dimensional scalar array
+    else:
+        current_dim_names = {}
+        for dim in out_dims:
+            if dim != "*":
+                current_dim_names[dim] = [dim]
+        direction_to_names = get_array_dim_names(
+            data_array, out_dims, current_dim_names
+        )
+        if require_wildcard_matches is not None:
+            for direction in out_dims:
+                if direction in require_wildcard_matches and same_list(
+                    direction_to_names[direction],
+                    require_wildcard_matches[direction],
+                ):
+                    direction_to_names[direction] = require_wildcard_matches[
+                        direction
+                    ]
+                else:
+                    # we could raise an exception here, because this is
+                    # inconsistent, but that exception is already raised
+                    # elsewhere when ensure_dims_like_are_satisfied is called
+                    pass
+        target_dimension_order = get_target_dimension_order(
+            out_dims, direction_to_names
+        )
+        for dim in data_array.dims:
+            if dim not in target_dimension_order:
+                raise DimensionNotInOutDimsError(dim)
+        slices_or_none = get_slices_and_placeholder_nones(
+            data_array, out_dims, direction_to_names
+        )
+        final_shape = get_final_shape(data_array, out_dims, direction_to_names)
+        return_array = np.reshape(
+            data_array.transpose(*target_dimension_order).values[
+                slices_or_none
+            ],
+            final_shape,
+        )
+    if return_wildcard_matches:
+        wildcard_matches = {
+            key: value
+            for key, value in direction_to_names.items()
+            if key == "*"
+        }
+        return return_array, wildcard_matches
+    else:
+        return return_array
+
+
+def flatten_wildcard_dims(
+    array: "NDArrayLike",
+    i_start: int,
+    i_end: int,
+    *,
+    enable_checks: bool = True
+) -> "NDArrayLike":
+    if enable_checks:
+        if i_end > len(array.shape):
+            raise ValueError(
+                "i_end should be less than the number of axes in array"
+            )
+        elif i_start < 0:
+            raise ValueError("i_start should be greater than 0")
+        elif i_start > i_end:
+            raise ValueError("i_start should be less than or equal to i_end")
+
+    if i_start == i_end:
+        # We need to insert a singleton dimension at i_start
+        target_shape = deepcopy(array.shape)
+        target_shape.insert(i_start, 1)
+    else:
+        target_shape = []
+        wildcard_length = 1
+        for i, length in enumerate(array.shape):
+            if i_start <= i < i_end:
+                wildcard_length *= length
+            else:
+                target_shape.append(length)
+            if i == i_end - 1:
+                target_shape.append(wildcard_length)
+
+    return array.reshape(target_shape)
+
+
+def expand_wildcard_dims(
+    array: "NDArrayLike",
+    target_shape: Tuple[int],
+    name: str,
+    out_dims: Sequence[str],
+) -> "NDArrayLike":
+    try:
+        out_array = array.reshape(target_shape)
+    except ValueError:
+        raise InvalidPropertyDictError(
+            f"Failed to restore shape for output {name} with original shape "
+            f"{array.shape} and target shape {target_shape}, are the output "
+            f"dims {out_dims} correct?"
+        )
+    return out_array

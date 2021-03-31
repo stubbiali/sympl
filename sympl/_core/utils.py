@@ -29,17 +29,10 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from datetime import datetime
 from inspect import getfullargspec as getargspec
 
-import numpy as np
 from sympl._core.data_array import DataArray
-from sympl._core.exceptions import (
-    InvalidStateError,
-    SharedKeyError,
-    NoMatchForDirectionError,
-    DimensionNotInOutDimsError,
-)
+from sympl._core.exceptions import InvalidStateError
 
 try:
     from numba import jit
@@ -53,114 +46,6 @@ except ImportError:
 
 
 # internal exceptions used only within this module
-
-
-def get_numpy_array(
-    data_array,
-    out_dims,
-    return_wildcard_matches=False,
-    require_wildcard_matches=None,
-):
-    """
-    Retrieve a numpy array with the desired dimensions and dimension order
-    from the given DataArray, using transpose and creating length 1 dimensions
-    as necessary.
-
-    Args
-    ----
-    data_array : DataArray
-        The object from which to retrieve data.
-    out_dims : list of str
-        The desired dimensions of the output and their order.
-        Length 1 dimensions will be created if the dimension is 'x', 'y', 'z',
-        or '*' and does not exist in data_array. 'x', 'y', and 'z' indicate any axes
-        registered to those directions with
-        :py:function:`~sympl.set_direction_names`. '*' indicates an axis
-        which is the flattened collection of all dimensions not explicitly
-        listed in out_dims, including any dimensions with unknown direction.
-    return_wildcard_matches : bool, optional
-        If True, will additionally return a dictionary whose keys are direction
-        wildcards (currently only '*') and values are lists of matched
-        dimensions in the order they appear.
-    require_wildcard_matches : dict, optional
-        A dictionary mapping wildcards to matches. If the wildcard is used in
-        out_dims, ensures that it matches the quantities present in this
-        dictionary, in the same order.
-
-    Returns
-    -------
-    numpy_array : ndarray
-        The desired array, with dimensions in the
-        correct order and length 1 dimensions created as needed.
-
-    Raises
-    ------
-    ValueError
-        If out_dims has values that are incompatible with the dimensions
-        in data_array, or data_array's dimensions are invalid in some way.
-
-    """
-    # This function was written when we had directional wildcards, and could
-    # be re-written to be simpler now that we do not.
-    if (len(data_array.values.shape) == 0) and (len(out_dims) == 0):
-        direction_to_names = {}  # required in case we need wildcard_matches
-        return_array = (
-            data_array.values
-        )  # special case, 0-dimensional scalar array
-    else:
-        current_dim_names = {}
-        for dim in out_dims:
-            if dim != "*":
-                current_dim_names[dim] = [dim]
-        direction_to_names = get_input_array_dim_names(
-            data_array, out_dims, current_dim_names
-        )
-        if require_wildcard_matches is not None:
-            for direction in out_dims:
-                if direction in require_wildcard_matches and same_list(
-                    direction_to_names[direction],
-                    require_wildcard_matches[direction],
-                ):
-                    direction_to_names[direction] = require_wildcard_matches[
-                        direction
-                    ]
-                else:
-                    # we could raise an exception here, because this is
-                    # inconsistent, but that exception is already raised
-                    # elsewhere when ensure_dims_like_are_satisfied is called
-                    pass
-        target_dimension_order = get_target_dimension_order(
-            out_dims, direction_to_names
-        )
-        for dim in data_array.dims:
-            if dim not in target_dimension_order:
-                raise DimensionNotInOutDimsError(dim)
-        slices_or_none = get_slices_and_placeholder_nones(
-            data_array, out_dims, direction_to_names
-        )
-        final_shape = get_final_shape(data_array, out_dims, direction_to_names)
-        return_array = np.reshape(
-            data_array.transpose(*target_dimension_order).values[
-                slices_or_none
-            ],
-            final_shape,
-        )
-    if return_wildcard_matches:
-        wildcard_matches = {
-            key: value
-            for key, value in direction_to_names.items()
-            if key == "*"
-        }
-        return return_array, wildcard_matches
-    else:
-        return return_array
-
-
-def datetime64_to_datetime(dt64):
-    ts = (dt64 - np.datetime64("1970-01-01T00:00:00Z")) / np.timedelta64(
-        1, "s"
-    )
-    return datetime.utcfromtimestamp(ts)
 
 
 def same_list(list1, list2):
@@ -209,123 +94,6 @@ def update_dict_by_adding_another(dict1, dict2):
     return  # not returning anything emphasizes that this is in-place
 
 
-def ensure_no_shared_keys(dict1, dict2):
-    """
-    Raises SharedKeyError if there exists a key present in both
-    dictionaries.
-    """
-    shared_keys = set(dict1.keys()).intersection(dict2.keys())
-    if len(shared_keys) > 0:
-        raise SharedKeyError("unexpected shared keys: {}".format(shared_keys))
-
-
-def get_input_array_dim_names(data_array, out_dims, dim_names):
-    """
-    Parameters
-    ----------
-    data_array : DataArray
-    out_dims : iterable
-        directions in dim_names that should be included in the output,
-        in the order they should be included
-    dim_names : dict
-        a mapping from directions to dimension names that fall under that
-        direction wildcard.
-
-    Returns
-    -------
-    input_array_dim_names : dict
-        A mapping from directions included in out_dims to the directions
-        present in data_array that correspond to those directions
-    """
-    input_array_dim_names = {}
-    for direction in out_dims:
-        if direction != "*":
-            matching_dims = set(data_array.dims).intersection(
-                dim_names[direction]
-            )
-            # must ensure matching dims are in right order
-            input_array_dim_names[direction] = []
-            for dim in data_array.dims:
-                if dim in matching_dims:
-                    input_array_dim_names[direction].append(dim)
-            if (
-                direction not in ("x", "y", "z", "*")
-                and len(input_array_dim_names[direction]) == 0
-            ):
-                raise NoMatchForDirectionError(direction)
-    if "*" in out_dims:
-        matching_dims = set(data_array.dims).difference(
-            set.union(set([]), *input_array_dim_names.values())
-        )
-        input_array_dim_names["*"] = []
-        for dim in data_array.dims:
-            if dim in matching_dims:
-                input_array_dim_names["*"].append(dim)
-    return input_array_dim_names
-
-
-def get_target_dimension_order(out_dims, direction_to_names):
-    """
-    Takes in an iterable of directions ('x', 'y', 'z', or '*') and a dictionary
-    mapping those directions to a list of names corresponding to those
-    directions. Returns a list of names in the same order as in out_dims,
-    preserving the order within direction_to_names for each direction.
-    """
-    target_dimension_order = []
-    for direction in out_dims:
-        target_dimension_order.extend(direction_to_names[direction])
-    return target_dimension_order
-
-
-def get_slices_and_placeholder_nones(data_array, out_dims, direction_to_names):
-    """
-    Takes in a DataArray, a desired ordering of output directions, and
-    a dictionary mapping those directions to a list of names corresponding to
-    those directions. Returns a list with the same ordering as out_dims that
-    contains slices for out_dims that have corresponding names (as many slices
-    as names, and spanning the entire dimension named), and None for out_dims
-    without corresponding names.
-
-    This returned list can be used to create length-1 axes for the dimensions
-    that currently have no corresponding names in data_array.
-    """
-    slices_or_none = []
-    for direction in out_dims:
-        if len(direction_to_names[direction]) == 0:
-            slices_or_none.append(None)
-        elif direction != "*" and len(direction_to_names[direction]) > 1:
-            raise ValueError(
-                "DataArray has multiple dimensions for a single direction"
-            )
-        else:
-            for name in direction_to_names[direction]:
-                slices_or_none.append(slice(0, len(data_array.coords[name])))
-    return slices_or_none
-
-
-def get_final_shape(data_array, out_dims, direction_to_names):
-    """
-    Determine the final shape that data_array must be reshaped to in order to
-    have one axis for each of the out_dims (for instance, combining all
-    axes collected by the '*' direction).
-    """
-    final_shape = []
-    for direction in out_dims:
-        if len(direction_to_names[direction]) == 0:
-            final_shape.append(1)
-        else:
-            # determine shape once dimensions for direction (usually '*') are combined
-            final_shape.append(
-                np.product(
-                    [
-                        len(data_array.coords[name])
-                        for name in direction_to_names[direction]
-                    ]
-                )
-            )
-    return final_shape
-
-
 def get_component_aliases(*args):
     """
     Returns aliases for variables in the properties of Components (TendencyComponent,
@@ -361,13 +129,6 @@ def get_component_aliases(*args):
                     if "alias" in properties.keys():
                         return_dict[name] = properties["alias"]
     return return_dict
-
-
-def option_or_default(option, default):
-    if option is None:
-        return default
-    else:
-        return option
 
 
 def get_kwarg_defaults(func):

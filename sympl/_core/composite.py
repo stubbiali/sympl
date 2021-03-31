@@ -37,10 +37,8 @@ from sympl._core.base_components import (
 )
 from sympl._core.combine_properties import combine_component_properties
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.utils import (
-    ensure_no_shared_keys,
-    update_dict_by_adding_another,
-)
+from sympl._core.utils import update_dict_by_adding_another
+from sympl._core.checks import ensure_no_shared_keys
 
 
 class InputPropertiesCompositeMixin(object):

@@ -30,9 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from datetime import datetime as real_datetime
-from datetime import timedelta
-
-from sympl._core.exceptions import DependencyError
+import numpy as np
 
 try:
     import cftime as ct
@@ -51,6 +49,8 @@ try:
         ct = None
 except ImportError:
     ct = None
+
+from sympl._core.exceptions import DependencyError
 
 
 def datetime(
@@ -126,4 +126,8 @@ def datetime(
         return ct.DatetimeGregorian(**kwargs)
 
 
-__all__ = (datetime, timedelta)
+def datetime64_to_datetime(dt64):
+    ts = (dt64 - np.datetime64("1970-01-01T00:00:00Z")) / np.timedelta64(
+        1, "s"
+    )
+    return datetime.utcfromtimestamp(ts)

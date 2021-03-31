@@ -35,7 +35,7 @@ import pytest
 from sympl import (
     DataArray,
     InvalidStateError,
-    get_numpy_arrays_with_properties,
+    get_arrays_with_properties,
 )
 
 
@@ -60,9 +60,7 @@ def test_match_dims_like_hardcoded_dimensions_matching_lengths():
         },
         "air_pressure": {"dims": ["alpha", "beta", "gamma"], "units": "Pa",},
     }
-    raw_arrays = get_numpy_arrays_with_properties(
-        input_state, input_properties
-    )
+    raw_arrays = get_arrays_with_properties(input_state, input_properties)
 
 
 def test_match_dims_like_partly_hardcoded_dimensions_matching_lengths():
@@ -86,9 +84,7 @@ def test_match_dims_like_partly_hardcoded_dimensions_matching_lengths():
         },
         "air_pressure": {"dims": ["*", "interface_levels"], "units": "Pa",},
     }
-    raw_arrays = get_numpy_arrays_with_properties(
-        input_state, input_properties
-    )
+    raw_arrays = get_arrays_with_properties(input_state, input_properties)
     assert np.byte_bounds(
         input_state["air_temperature"].values
     ) == np.byte_bounds(raw_arrays["air_temperature"])
@@ -119,9 +115,7 @@ def test_match_dims_like_hardcoded_dimensions_non_matching_lengths():
         "air_pressure": {"dims": ["alpha", "beta", "gamma"], "units": "Pa",},
     }
     try:
-        raw_arrays = get_numpy_arrays_with_properties(
-            input_state, input_properties
-        )
+        raw_arrays = get_arrays_with_properties(input_state, input_properties)
     except InvalidStateError:
         pass
     else:
@@ -149,9 +143,7 @@ def test_match_dims_like_wildcard_dimensions_matching_lengths():
         },
         "air_pressure": {"dims": ["*"], "units": "Pa",},
     }
-    raw_arrays = get_numpy_arrays_with_properties(
-        input_state, input_properties
-    )
+    raw_arrays = get_arrays_with_properties(input_state, input_properties)
 
 
 def test_match_dims_like_wildcard_dimensions_non_matching_lengths():
@@ -176,9 +168,7 @@ def test_match_dims_like_wildcard_dimensions_non_matching_lengths():
         "air_pressure": {"dims": ["*"], "units": "Pa",},
     }
     try:
-        raw_arrays = get_numpy_arrays_with_properties(
-            input_state, input_properties
-        )
+        raw_arrays = get_arrays_with_properties(input_state, input_properties)
     except InvalidStateError:
         pass
     else:
@@ -210,9 +200,7 @@ def test_match_dims_like_wildcard_dimensions_use_same_ordering():
         },
         "air_pressure": {"dims": ["*"], "units": "Pa",},
     }
-    raw_arrays = get_numpy_arrays_with_properties(
-        input_state, input_properties
-    )
+    raw_arrays = get_arrays_with_properties(input_state, input_properties)
     assert np.all(raw_arrays["air_temperature"] == raw_arrays["air_pressure"])
 
 

@@ -30,10 +30,11 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from sympl._core.exceptions import (
+    ComponentExtraOutputError,
+    ComponentMissingOutputError,
     InvalidPropertyDictError,
     InvalidStateError,
-    ComponentMissingOutputError,
-    ComponentExtraOutputError,
+    SharedKeyError,
 )
 from sympl._core.units import (
     get_name_with_incompatible_units,
@@ -441,3 +442,31 @@ def check_array_shape(out_dims, raw_array, name, dim_lengths):
                     dim, name, length, dim_lengths[dim]
                 )
             )
+
+
+def ensure_properties_have_dims_and_units(properties, quantity_name):
+    if "dims" not in properties:
+        raise InvalidPropertyDictError(
+            "dims not specified for quantity {}".format(quantity_name)
+        )
+    if "units" not in properties:
+        raise InvalidPropertyDictError(
+            "units not specified for quantity {}".format(quantity_name)
+        )
+
+
+def ensure_quantity_has_units(quantity, quantity_name):
+    if "units" not in quantity.attrs:
+        raise InvalidStateError(
+            "quantity {} is missing units attribute".format(quantity_name)
+        )
+
+
+def ensure_no_shared_keys(dict1, dict2):
+    """
+    Raises SharedKeyError if there exists a key present in both
+    dictionaries.
+    """
+    shared_keys = set(dict1.keys()).intersection(dict2.keys())
+    if len(shared_keys) > 0:
+        raise SharedKeyError("unexpected shared keys: {}".format(shared_keys))

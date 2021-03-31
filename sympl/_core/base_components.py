@@ -30,6 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
+from datetime import timedelta
 from six import add_metaclass
 
 try:
@@ -45,10 +46,9 @@ from sympl._core.checks import (
 )
 from sympl._core.exceptions import InvalidPropertyDictError
 from sympl._core.restore_dataarray import restore_data_arrays_with_properties
-from sympl._core.time import timedelta
 from sympl._core.tracers import TracerPacker
 from sympl._core.utils import get_kwarg_defaults
-from sympl._core.utils_storage import get_numpy_arrays_with_properties
+from sympl._core.storage import get_arrays_with_properties
 
 
 def is_component_class(cls):
@@ -255,7 +255,7 @@ class Stepper(object):
         added_names = []
         for name, properties in self.output_properties.items():
             tendency_name = self._get_tendency_name(name)
-            if properties["units"] is "":
+            if properties["units"] == "":
                 units = "s^-1"
             else:
                 units = "{} s^-1".format(properties["units"])
@@ -352,9 +352,7 @@ class Stepper(object):
         """
         self._check_self_is_initialized()
         self._input_checker.check_inputs(state)
-        raw_state = get_numpy_arrays_with_properties(
-            state, self.input_properties
-        )
+        raw_state = get_arrays_with_properties(state, self.input_properties)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -603,9 +601,7 @@ class TendencyComponent(object):
         """
         self._check_self_is_initialized()
         self._input_checker.check_inputs(state)
-        raw_state = get_numpy_arrays_with_properties(
-            state, self.input_properties
-        )
+        raw_state = get_arrays_with_properties(state, self.input_properties)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -851,9 +847,7 @@ class ImplicitTendencyComponent(object):
         """
         self._check_self_is_initialized()
         self._input_checker.check_inputs(state)
-        raw_state = get_numpy_arrays_with_properties(
-            state, self.input_properties
-        )
+        raw_state = get_arrays_with_properties(state, self.input_properties)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -1022,9 +1016,7 @@ class DiagnosticComponent(object):
         """
         self._check_self_is_initialized()
         self._input_checker.check_inputs(state)
-        raw_state = get_numpy_arrays_with_properties(
-            state, self.input_properties
-        )
+        raw_state = get_arrays_with_properties(state, self.input_properties)
         raw_state["time"] = state["time"]
         raw_diagnostics = self.array_call(raw_state)
         self._diagnostic_checker.check_diagnostics(raw_diagnostics)

@@ -30,6 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
+from datetime import timedelta
 import warnings
 
 from sympl._core.base_components import ImplicitTendencyComponent, Stepper
@@ -40,7 +41,6 @@ from sympl._core.combine_properties import (
 from sympl._core.composite import ImplicitTendencyComponentComposite
 from sympl._core.exceptions import InvalidPropertyDictError
 from sympl._core.state import copy_untouched_quantities
-from sympl._core.time import timedelta
 from sympl._core.units import clean_units
 
 
