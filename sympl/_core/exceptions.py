@@ -29,19 +29,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-class InvalidStateError(Exception):
-    pass
-
-
-class InvalidPropertyDictError(Exception):
-    pass
-
-
-class SharedKeyError(Exception):
-    pass
-
-
-class DependencyError(Exception):
+class ComponentExtraOutputError(Exception):
     pass
 
 
@@ -49,11 +37,7 @@ class ComponentMissingOutputError(Exception):
     pass
 
 
-class ComponentExtraOutputError(Exception):
-    pass
-
-
-class NoMatchForDirectionError(Exception):
+class DependencyError(Exception):
     pass
 
 
@@ -61,5 +45,21 @@ class DimensionNotInOutDimsError(ValueError):
     pass
 
 
+class InvalidPropertyDictError(Exception):
+    pass
+
+
+class InvalidStateError(Exception):
+    pass
+
+
+class NoMatchForDirectionError(Exception):
+    pass
+
+
 class ShapeMismatchError(Exception):
+    pass
+
+
+class SharedKeyError(Exception):
     pass
