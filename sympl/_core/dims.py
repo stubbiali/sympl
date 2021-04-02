@@ -33,7 +33,11 @@ import numpy as np
 from typing import Dict, List, Optional, Sequence, TYPE_CHECKING, Tuple
 
 from sympl._core.checks import ensure_properties_have_dims_and_units
-from sympl._core.exceptions import InvalidStateError, NoMatchForDirectionError
+from sympl._core.exceptions import (
+    InvalidPropertyDictError,
+    InvalidStateError,
+    NoMatchForDirectionError,
+)
 
 if TYPE_CHECKING:
     from sympl._core.typing import DataArray, DataArrayDict, PropertyDict
@@ -62,6 +66,19 @@ def fill_dims_wildcard(
             out_dims_without_wildcard.append(out_dim)
 
     return out_dims_without_wildcard, target_shape
+
+
+def get_alias_or_name(
+    name: str,
+    output_properties: "PropertyDict",
+    input_properties: "PropertyDict",
+) -> str:
+    if "alias" in output_properties[name]:
+        return output_properties[name]["alias"]
+    elif name in input_properties and "alias" in input_properties[name]:
+        return input_properties[name]["alias"]
+    else:
+        return name
 
 
 def get_final_shape(
@@ -239,3 +256,29 @@ def get_wildcard_names_and_dim_lengths(
     wildcard_names = tuple(wildcard_names) if len(wildcard_names) > 0 else None
 
     return wildcard_names, dim_lengths
+
+
+def extract_output_dims_properties(
+    output_properties: "PropertyDict",
+    input_properties: "PropertyDict",
+    ignore_names: Sequence[str],
+) -> Dict[str, Sequence[str]]:
+    out = {}
+
+    for name, properties in output_properties.items():
+        if name in ignore_names:
+            continue
+        elif "dims" in properties:
+            out[name] = properties["dims"]
+        elif name not in input_properties:
+            raise InvalidPropertyDictError(
+                f"Output dims must be specified for {name} in properties."
+            )
+        elif "dims" not in input_properties[name]:
+            raise InvalidPropertyDictError(
+                f"Input dims must be specified for {name} in properties."
+            )
+        else:
+            out[name] = input_properties[name]["dims"]
+
+    return out

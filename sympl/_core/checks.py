@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         DataArrayDict,
         NDArrayLike,
         NDArrayLikeDict,
+        Property,
         PropertyDict,
     )
 
@@ -436,7 +437,7 @@ def ensure_no_shared_keys(dict1: Dict, dict2: Dict) -> None:
 
 
 def ensure_properties_have_dims_and_units(
-    properties: "PropertyDict", quantity_name: str
+    properties: "Property", quantity_name: str
 ) -> None:
     if "dims" not in properties:
         raise InvalidPropertyDictError(
