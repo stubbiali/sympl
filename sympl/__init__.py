@@ -78,8 +78,8 @@ from sympl._core.storage import (
     initialize_numpy_arrays_with_properties,
     restore_dimensions,
     get_numpy_array,
+    restore_data_arrays_with_properties,
 )
-from sympl._core.restore_dataarray import restore_data_arrays_with_properties
 from sympl._core.tendency_stepper import TendencyStepper
 from sympl._core.time import datetime
 from sympl._core.tracers import (

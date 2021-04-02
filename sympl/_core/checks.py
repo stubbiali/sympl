@@ -29,6 +29,8 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from typing import Dict, List, Sequence, TYPE_CHECKING, Tuple, Union
+
 from sympl._core.exceptions import (
     ComponentExtraOutputError,
     ComponentMissingOutputError,
@@ -41,382 +43,418 @@ from sympl._core.units import (
     get_tendency_name_with_incompatible_units,
 )
 
+if TYPE_CHECKING:
+    from sympl._core.typing import (
+        Component,
+        DataArray,
+        DataArrayDict,
+        NDArrayLike,
+        NDArrayLikeDict,
+        PropertyDict,
+    )
 
-class InputChecker(object):
-    def __init__(self, component):
-        self.component = component
-        if not hasattr(component, "input_properties"):
-            raise InvalidPropertyDictError(
-                "Component of type {} is missing input_properties".format(
-                    component.__class__.__name__
-                )
-            )
-        elif not isinstance(component.input_properties, dict):
-            raise InvalidPropertyDictError(
-                "input_properties on component of type {} is of type {}, but "
-                "should be an instance of dict".format(
-                    component.__class__.__name__,
-                    component.input_properties.__class__,
-                )
-            )
-        for name, properties in self.component.input_properties.items():
-            if "units" not in properties.keys():
-                raise InvalidPropertyDictError(
-                    "Input properties do not have units defined for {}".format(
-                        name
-                    )
-                )
-            if "dims" not in properties.keys():
-                raise InvalidPropertyDictError(
-                    "Input properties do not have dims defined for {}".format(
-                        name
-                    )
-                )
-        check_overlapping_aliases(self.component.input_properties, "input")
-        super(InputChecker, self).__init__()
-
-    def check_inputs(self, state):
-        for key in self.component.input_properties.keys():
-            if key not in state.keys():
-                raise InvalidStateError(
-                    "Missing input quantity {}".format(key)
-                )
+    FieldDict = Union[DataArrayDict, NDArrayLikeDict]
 
 
-class TendencyChecker(object):
-    def __init__(self, component):
-        self.component = component
-        if not hasattr(component, "tendency_properties"):
-            raise InvalidPropertyDictError(
-                "Component of type {} is missing tendency_properties".format(
-                    component.__class__.__name__
-                )
-            )
-        elif not isinstance(component.tendency_properties, dict):
-            raise InvalidPropertyDictError(
-                "tendency_properties on component of type {} is of type {}, but "
-                "should be an instance of dict".format(
-                    component.__class__.__name__,
-                    component.input_properties.__class__,
-                )
-            )
-        for name, properties in self.component.tendency_properties.items():
-            if "units" not in properties.keys():
-                raise InvalidPropertyDictError(
-                    "Tendency properties do not have units defined for {}".format(
-                        name
-                    )
-                )
-            if (
-                "dims" not in properties.keys()
-                and name not in self.component.input_properties.keys()
-            ):
-                raise InvalidPropertyDictError(
-                    "Tendency properties do not have dims defined for {}".format(
-                        name
-                    )
-                )
-        check_overlapping_aliases(
-            self.component.tendency_properties, "tendency"
-        )
-        incompatible_name = get_tendency_name_with_incompatible_units(
-            self.component.input_properties, self.component.tendency_properties
-        )
-        if incompatible_name is not None:
-            raise InvalidPropertyDictError(
-                "Component of type {} has input {} with tendency units {} that "
-                "are incompatible with input units {}".format(
-                    type(self.component),
-                    incompatible_name,
-                    self.component.tendency_properties[incompatible_name][
-                        "units"
-                    ],
-                    self.component.input_properties[incompatible_name][
-                        "units"
-                    ],
-                )
-            )
-        super(TendencyChecker, self).__init__()
-
-    @property
-    def _wanted_tendency_aliases(self):
-        wanted_tendency_aliases = {}
-        for name, properties in self.component.tendency_properties.items():
-            wanted_tendency_aliases[name] = []
-            if "alias" in properties.keys():
-                wanted_tendency_aliases[name].append(properties["alias"])
-            if (
-                name in self.component.input_properties.keys()
-                and "alias" in self.component.input_properties[name].keys()
-            ):
-                wanted_tendency_aliases[name].append(
-                    self.component.input_properties[name]["alias"]
-                )
-        return wanted_tendency_aliases
-
-    def _check_missing_tendencies(self, tendency_dict):
-        missing_tendencies = set()
-        for name, aliases in self._wanted_tendency_aliases.items():
-            if name not in tendency_dict.keys() and not any(
-                alias in tendency_dict.keys() for alias in aliases
-            ):
-                missing_tendencies.add(name)
-        if len(missing_tendencies) > 0:
-            raise ComponentMissingOutputError(
-                "Component {} did not compute tendencies for {}".format(
-                    self.component.__class__.__name__,
-                    ", ".join(missing_tendencies),
-                )
-            )
-
-    def _check_extra_tendencies(self, tendency_dict):
-        wanted_set = set()
-        wanted_set.update(self._wanted_tendency_aliases.keys())
-        for value_list in self._wanted_tendency_aliases.values():
-            wanted_set.update(value_list)
-        extra_tendencies = set(tendency_dict.keys()).difference(wanted_set)
-        if len(extra_tendencies) > 0:
-            raise ComponentExtraOutputError(
-                "Component {} computed tendencies for {} which are not in "
-                "tendency_properties".format(
-                    self.component.__class__.__name__,
-                    ", ".join(extra_tendencies),
-                )
-            )
-
-    def check_tendencies(self, tendency_dict):
-        self._check_missing_tendencies(tendency_dict)
-        self._check_extra_tendencies(tendency_dict)
-
-
-class DiagnosticChecker(object):
-    def __init__(self, component):
-        self.component = component
+class DiagnosticChecker:
+    def __init__(self, component: "Component") -> None:
         if not hasattr(component, "diagnostic_properties"):
             raise InvalidPropertyDictError(
-                "Component of type {} is missing diagnostic_properties".format(
-                    component.__class__.__name__
-                )
+                f"Component of type {type(component)} is missing "
+                f"diagnostic_properties."
             )
         elif not isinstance(component.diagnostic_properties, dict):
             raise InvalidPropertyDictError(
-                "diagnostic_properties on component of type {} is of type {}, but "
-                "should be an instance of dict".format(
-                    component.__class__.__name__,
-                    component.input_properties.__class__,
-                )
+                f"diagnostic_properties on component of type {type(component)} "
+                f"is of type {type(component.input_properties)}, but "
+                f"should be an instance of dict."
             )
-        self._ignored_diagnostics = []
+
         for name, properties in component.diagnostic_properties.items():
-            if "units" not in properties.keys():
+            if "units" not in properties:
                 raise InvalidPropertyDictError(
-                    "DiagnosticComponent properties do not have units defined for {}".format(
-                        name
-                    )
+                    f"DiagnosticComponent properties do not have units defined "
+                    f"for {name}."
                 )
             if (
-                "dims" not in properties.keys()
-                and name not in component.input_properties.keys()
+                "dims" not in properties
+                and name not in component.input_properties
             ):
                 raise InvalidPropertyDictError(
-                    "DiagnosticComponent properties do not have dims defined for {}".format(
-                        name
-                    )
+                    f"DiagnosticComponent properties do not have dims defined "
+                    f"for {name}."
                 )
+
         incompatible_name = get_name_with_incompatible_units(
-            self.component.input_properties,
-            self.component.diagnostic_properties,
+            component.input_properties, component.diagnostic_properties,
         )
         if incompatible_name is not None:
             raise InvalidPropertyDictError(
-                "Component of type {} has input {} with diagnostic units {} that "
-                "are incompatible with input units {}".format(
-                    type(self.component),
-                    incompatible_name,
-                    self.component.diagnostic_properties[incompatible_name][
-                        "units"
-                    ],
-                    self.component.input_properties[incompatible_name][
-                        "units"
-                    ],
-                )
+                f"Component of type {type(component)} has input "
+                f"{incompatible_name} with diagnostic units "
+                f"{component.diagnostic_properties[incompatible_name]['units']} "
+                f"that are incompatible with input units "
+                f"{component.input_properties[incompatible_name]['units']}."
             )
+
         check_overlapping_aliases(
             component.diagnostic_properties, "diagnostic"
         )
 
-    @property
-    def _wanted_diagnostic_aliases(self):
+        self.component = component
+        self._ignored_diagnostics = []
+
+    def _get_diagnostic_aliases(self) -> Dict[str, List[str]]:
         wanted_diagnostic_aliases = {}
         for name, properties in self.component.diagnostic_properties.items():
             wanted_diagnostic_aliases[name] = []
-            if "alias" in properties.keys():
+            if "alias" in properties:
                 wanted_diagnostic_aliases[name].append(properties["alias"])
             if (
-                name in self.component.input_properties.keys()
-                and "alias" in self.component.input_properties[name].keys()
+                name in self.component.input_properties
+                and "alias" in self.component.input_properties[name]
             ):
                 wanted_diagnostic_aliases[name].append(
                     self.component.input_properties[name]["alias"]
                 )
         return wanted_diagnostic_aliases
 
-    def _check_missing_diagnostics(self, diagnostics_dict):
+    def _check_missing_diagnostics(self, diagnostic_dict: "FieldDict") -> None:
         missing_diagnostics = set()
-        for name, aliases in self._wanted_diagnostic_aliases.items():
+        diagnostic_aliases = self._get_diagnostic_aliases()
+
+        for name, aliases in diagnostic_aliases.items():
             if (
-                name not in diagnostics_dict.keys()
+                name not in diagnostic_dict
                 and name not in self._ignored_diagnostics
-                and not any(
-                    alias in diagnostics_dict.keys() for alias in aliases
-                )
+                and not any(alias in diagnostic_dict for alias in aliases)
             ):
                 missing_diagnostics.add(name)
+
         if len(missing_diagnostics) > 0:
             raise ComponentMissingOutputError(
-                "Component {} did not compute diagnostic(s) {}".format(
-                    self.component.__class__.__name__,
-                    ", ".join(missing_diagnostics),
-                )
+                f"Component {type(self.component)} did not compute "
+                f"diagnostic(s) {', '.join(missing_diagnostics)}."
             )
 
-    def _check_extra_diagnostics(self, diagnostics_dict):
+    def _check_extra_diagnostics(self, diagnostic_dict: "FieldDict") -> None:
+        diagnostic_aliases = self._get_diagnostic_aliases()
+
         wanted_set = set()
-        wanted_set.update(self._wanted_diagnostic_aliases.keys())
-        for value_list in self._wanted_diagnostic_aliases.values():
+        wanted_set.update(diagnostic_aliases.keys())
+        for value_list in diagnostic_aliases.values():
             wanted_set.update(value_list)
-        extra_diagnostics = set(diagnostics_dict.keys()).difference(wanted_set)
+
+        extra_diagnostics = set(diagnostic_dict.keys()).difference(wanted_set)
         if len(extra_diagnostics) > 0:
             raise ComponentExtraOutputError(
-                "Component {} computed diagnostic(s) {} which are not in "
-                "diagnostic_properties".format(
-                    self.component.__class__.__name__,
-                    ", ".join(extra_diagnostics),
-                )
+                f"Component {type(self.component)} computed diagnostic(s) "
+                f"{', '.join(extra_diagnostics)} which are not in "
+                f"diagnostic_properties."
             )
 
-    def set_ignored_diagnostics(self, ignored_diagnostics):
-        self._ignored_diagnostics = ignored_diagnostics
+    @property
+    def ignored_diagnostics(self) -> Tuple[str]:
+        return tuple(self._ignored_diagnostics)
 
-    def check_diagnostics(self, diagnostics_dict):
+    @ignored_diagnostics.setter
+    def ignored_diagnostics(self, val: List[str]) -> None:
+        self._ignored_diagnostics = val
+
+    def check_diagnostics(self, diagnostics_dict: "FieldDict") -> None:
         self._check_missing_diagnostics(diagnostics_dict)
         self._check_extra_diagnostics(diagnostics_dict)
 
 
-class OutputChecker(object):
-    def __init__(self, component):
+class InputChecker:
+    def __init__(self, component: "Component") -> None:
+        if not hasattr(component, "input_properties"):
+            raise InvalidPropertyDictError(
+                f"Component of type {type(component)} is missing "
+                f"input_properties."
+            )
+        if not isinstance(component.input_properties, dict):
+            raise InvalidPropertyDictError(
+                f"input_properties on component of type {type(component)} "
+                f"is of type {type(component.input_properties)}, "
+                f"but should be an instance of dict."
+            )
+
+        for name, properties in component.input_properties.items():
+            if "units" not in properties:
+                raise InvalidPropertyDictError(
+                    f"Input properties do not have units defined for {name}."
+                )
+            if "dims" not in properties:
+                raise InvalidPropertyDictError(
+                    f"Input properties do not have dims defined for {name}."
+                )
+
+        check_overlapping_aliases(component.input_properties, "input")
+
         self.component = component
+
+    def check_inputs(self, state: "FieldDict") -> None:
+        for name in self.component.input_properties:
+            if name not in state:
+                raise InvalidStateError(f"Missing input quantity {name}.")
+
+
+class OutputChecker:
+    def __init__(self, component: "Component") -> None:
         if not hasattr(component, "output_properties"):
             raise InvalidPropertyDictError(
-                "Component of type {} is missing output_properties".format(
-                    component.__class__.__name__
-                )
+                f"Component of type {type(component)} is missing "
+                f"output_properties."
             )
         elif not isinstance(component.output_properties, dict):
             raise InvalidPropertyDictError(
-                "output_properties on component of type {} is of type {}, but "
-                "should be an instance of dict".format(
-                    component.__class__.__name__,
-                    component.input_properties.__class__,
-                )
+                f"output_properties on component of type {type(component)} is "
+                f"of type {type(component(component.output_properties))}, but "
+                f"should be an instance of dict."
             )
-        for name, properties in self.component.output_properties.items():
-            if "units" not in properties.keys():
+
+        for name, properties in component.output_properties.items():
+            if "units" not in properties:
                 raise InvalidPropertyDictError(
-                    "Output properties do not have units defined for {}".format(
-                        name
-                    )
+                    f"Output properties do not have units defined for {name}."
                 )
             if (
-                "dims" not in properties.keys()
-                and name not in self.component.input_properties.keys()
+                "dims" not in properties
+                and name not in component.input_properties
             ):
                 raise InvalidPropertyDictError(
-                    "Output properties do not have dims defined for {}".format(
-                        name
-                    )
+                    f"Output properties do not have dims defined for {name}."
                 )
-        check_overlapping_aliases(self.component.output_properties, "output")
+
+        check_overlapping_aliases(component.output_properties, "output")
+
         incompatible_name = get_name_with_incompatible_units(
-            self.component.input_properties, self.component.output_properties
+            component.input_properties, component.output_properties
         )
         if incompatible_name is not None:
             raise InvalidPropertyDictError(
-                "Component of type {} has input {} with output units {} that "
-                "are incompatible with input units {}".format(
-                    type(self.component),
-                    incompatible_name,
-                    self.component.output_properties[incompatible_name][
-                        "units"
-                    ],
-                    self.component.input_properties[incompatible_name][
-                        "units"
-                    ],
-                )
+                f"Component of type {type(component)} has input "
+                f"{incompatible_name} with output units "
+                f"{component.output_properties[incompatible_name]['units']} "
+                f"that are incompatible with input units "
+                f"{component.input_properties[incompatible_name]['units']}."
             )
-        super(OutputChecker, self).__init__()
 
-    @property
-    def _wanted_output_aliases(self):
+        self.component = component
+
+    def _get_output_aliases(self) -> Dict[str, List[str]]:
         wanted_output_aliases = {}
         for name, properties in self.component.output_properties.items():
             wanted_output_aliases[name] = []
-            if "alias" in properties.keys():
+            if "alias" in properties:
                 wanted_output_aliases[name].append(properties["alias"])
             if (
-                name in self.component.input_properties.keys()
-                and "alias" in self.component.input_properties[name].keys()
+                name in self.component.input_properties
+                and "alias" in self.component.input_properties[name]
             ):
                 wanted_output_aliases[name].append(
                     self.component.input_properties[name]["alias"]
                 )
         return wanted_output_aliases
 
-    def _check_missing_outputs(self, outputs_dict):
+    def _check_missing_outputs(self, output_dict: "FieldDict") -> None:
+        output_aliases = self._get_output_aliases()
+
         missing_outputs = set()
-        for name, aliases in self._wanted_output_aliases.items():
-            if name not in outputs_dict.keys() and not any(
-                alias in outputs_dict.keys() for alias in aliases
+        for name, aliases in output_aliases.items():
+            if name not in output_dict and not any(
+                alias in output_dict for alias in aliases
             ):
                 missing_outputs.add(name)
+
         if len(missing_outputs) > 0:
             raise ComponentMissingOutputError(
-                "Component {} did not compute output(s) {}".format(
-                    self.component.__class__.__name__,
-                    ", ".join(missing_outputs),
-                )
+                f"Component {type(self.component)} did not compute output(s) "
+                f"{', '.join(missing_outputs)}."
             )
 
-    def _check_extra_outputs(self, outputs_dict):
+    def _check_extra_outputs(self, output_dict: "FieldDict") -> None:
+        output_aliases = self._get_output_aliases()
+
         wanted_set = set()
-        wanted_set.update(self._wanted_output_aliases.keys())
-        for value_list in self._wanted_output_aliases.values():
+        wanted_set.update(output_aliases.keys())
+        for value_list in output_aliases.values():
             wanted_set.update(value_list)
-        extra_outputs = set(outputs_dict.keys()).difference(wanted_set)
+
+        extra_outputs = set(output_dict.keys()).difference(wanted_set)
         if len(extra_outputs) > 0:
             raise ComponentExtraOutputError(
-                "Component {} computed output(s) {} which are not in "
-                "output_properties".format(
-                    self.component.__class__.__name__, ", ".join(extra_outputs)
-                )
+                f"Component {type(self.component)} computed output(s) "
+                f"{', '.join(extra_outputs)} which are not in "
+                f"output_properties."
             )
 
-    def check_outputs(self, output_dict):
+    def check_outputs(self, output_dict: "FieldDict") -> None:
         self._check_missing_outputs(output_dict)
         self._check_extra_outputs(output_dict)
 
 
-def check_overlapping_aliases(properties, properties_name):
+class TendencyChecker:
+    def __init__(self, component: "Component") -> None:
+        if not hasattr(component, "tendency_properties"):
+            raise InvalidPropertyDictError(
+                f"Component of type {type(component)} is missing "
+                f"tendency_properties."
+            )
+        if not isinstance(component.tendency_properties, dict):
+            raise InvalidPropertyDictError(
+                f"tendency_properties on component of type {type(component)} "
+                f"is of type {type(component.input_properties)}, "
+                f"but should be an instance of dict."
+            )
+
+        for name, properties in component.tendency_properties.items():
+            if "units" not in properties:
+                raise InvalidPropertyDictError(
+                    f"Tendency properties do not have units defined for {name}."
+                )
+            if (
+                "dims" not in properties
+                and name not in component.input_properties
+            ):
+                raise InvalidPropertyDictError(
+                    f"Tendency properties do not have dims defined for {name}."
+                )
+
+        check_overlapping_aliases(component.tendency_properties, "tendency")
+        incompatible_name = get_tendency_name_with_incompatible_units(
+            component.input_properties, component.tendency_properties
+        )
+        if incompatible_name is not None:
+            raise InvalidPropertyDictError(
+                f"Component of type {type(component)} has input "
+                f"{incompatible_name} with tendency units "
+                f"{component.tendency_properties[incompatible_name]['units']} "
+                f"that are incompatible with input units "
+                f"{component.input_properties[incompatible_name]['units']}"
+            )
+
+        self.component = component
+
+    def _get_tendency_aliases(self) -> Dict[str, List[str]]:
+        wanted_tendency_aliases = {}
+        for name, properties in self.component.tendency_properties.items():
+            wanted_tendency_aliases[name] = []
+            if "alias" in properties:
+                wanted_tendency_aliases[name].append(properties["alias"])
+            if (
+                name in self.component.input_properties
+                and "alias" in self.component.input_properties[name]
+            ):
+                wanted_tendency_aliases[name].append(
+                    self.component.input_properties[name]["alias"]
+                )
+        return wanted_tendency_aliases
+
+    def _check_missing_tendencies(self, tendency_dict: "FieldDict") -> None:
+        missing_tendencies = set()
+        tendency_aliases = self._get_tendency_aliases()
+
+        for name, aliases in tendency_aliases.items():
+            if name not in tendency_dict and not any(
+                alias in tendency_dict for alias in aliases
+            ):
+                missing_tendencies.add(name)
+
+        if len(missing_tendencies) > 0:
+            raise ComponentMissingOutputError(
+                f"Component {type(self.component)} did not compute tendencies "
+                f"for {', '.join(missing_tendencies)}."
+            )
+
+    def _check_extra_tendencies(self, tendency_dict: "FieldDict") -> None:
+        tendency_aliases = self._get_tendency_aliases()
+
+        wanted_set = set()
+        wanted_set.update(tendency_aliases.keys())
+        for value_list in tendency_aliases.values():
+            wanted_set.update(value_list)
+
+        extra_tendencies = set(tendency_dict.keys()).difference(wanted_set)
+        if len(extra_tendencies) > 0:
+            raise ComponentExtraOutputError(
+                f"Component {type(self.component)} computed tendencies for "
+                f"{', '.join(extra_tendencies)} which are not in "
+                f"tendency_properties."
+            )
+
+    def check_tendencies(self, tendency_dict: "FieldDict") -> None:
+        self._check_missing_tendencies(tendency_dict)
+        self._check_extra_tendencies(tendency_dict)
+
+
+def check_array_shape(
+    out_dims: Sequence[str],
+    array: "NDArrayLike",
+    name: str,
+    dim_lengths: Dict[str, int],
+) -> None:
+    if len(out_dims) != len(array.shape):
+        raise InvalidPropertyDictError(
+            f"Returned array for {name} has shape {array.shape} "
+            f"which is incompatible with dims {out_dims} in properties."
+        )
+    for dim, length in zip(out_dims, array.shape):
+        if dim in dim_lengths and dim_lengths[dim] != length:
+            raise InvalidPropertyDictError(
+                f"Dimension {dim} of quantity {name} has length {length}, "
+                f"but another quantity has length {dim_lengths[dim]}."
+            )
+
+
+def check_overlapping_aliases(
+    properties: "PropertyDict", properties_name: str
+) -> None:
     defined_aliases = set()
     for name, properties in properties.items():
-        if "alias" in properties.keys():
+        if "alias" in properties:
             if properties["alias"] not in defined_aliases:
                 defined_aliases.add(properties["alias"])
             else:
                 raise InvalidPropertyDictError(
-                    "Multiple quantities map to alias {} in {} "
-                    "properties".format(properties["alias"], properties_name)
+                    f"Multiple quantities map to alias {properties['alias']} "
+                    f"in {properties_name} properties."
                 )
+
+
+def ensure_no_shared_keys(dict1: Dict, dict2: Dict) -> None:
+    """
+    Raises SharedKeyError if there exists a key present in both
+    dictionaries.
+    """
+    shared_keys = [key for key in dict1 if key in dict2]
+    if len(shared_keys) > 0:
+        raise SharedKeyError(
+            f"Unexpected shared keys: {', '.join(shared_keys)}."
+        )
+
+
+def ensure_properties_have_dims_and_units(
+    properties: "PropertyDict", quantity_name: str
+) -> None:
+    if "dims" not in properties:
+        raise InvalidPropertyDictError(
+            f"dims not specified for quantity {quantity_name}."
+        )
+    if "units" not in properties:
+        raise InvalidPropertyDictError(
+            f"units not specified for quantity {quantity_name}."
+        )
+
+
+def ensure_quantity_has_units(
+    quantity: "DataArray", quantity_name: str
+) -> None:
+    if "units" not in quantity.attrs:
+        raise InvalidStateError(
+            f"Quantity {quantity_name} is missing units attribute."
+        )
 
 
 def ensure_values_are_arrays(array_dict):
@@ -424,49 +462,3 @@ def ensure_values_are_arrays(array_dict):
     # for name, value in array_dict.items():
     # if not isinstance(value, np.ndarray):
     # array_dict[name] = np.asarray(value)
-
-
-def check_array_shape(out_dims, raw_array, name, dim_lengths):
-    if len(out_dims) != len(raw_array.shape):
-        raise InvalidPropertyDictError(
-            "Returned array for {} has shape {} "
-            "which is incompatible with dims {} in properties".format(
-                name, raw_array.shape, out_dims
-            )
-        )
-    for dim, length in zip(out_dims, raw_array.shape):
-        if dim in dim_lengths.keys() and dim_lengths[dim] != length:
-            raise InvalidPropertyDictError(
-                "Dimension {} of quantity {} has length {}, but "
-                "another quantity has length {}".format(
-                    dim, name, length, dim_lengths[dim]
-                )
-            )
-
-
-def ensure_properties_have_dims_and_units(properties, quantity_name):
-    if "dims" not in properties:
-        raise InvalidPropertyDictError(
-            "dims not specified for quantity {}".format(quantity_name)
-        )
-    if "units" not in properties:
-        raise InvalidPropertyDictError(
-            "units not specified for quantity {}".format(quantity_name)
-        )
-
-
-def ensure_quantity_has_units(quantity, quantity_name):
-    if "units" not in quantity.attrs:
-        raise InvalidStateError(
-            "quantity {} is missing units attribute".format(quantity_name)
-        )
-
-
-def ensure_no_shared_keys(dict1, dict2):
-    """
-    Raises SharedKeyError if there exists a key present in both
-    dictionaries.
-    """
-    shared_keys = set(dict1.keys()).intersection(dict2.keys())
-    if len(shared_keys) > 0:
-        raise SharedKeyError("unexpected shared keys: {}".format(shared_keys))
