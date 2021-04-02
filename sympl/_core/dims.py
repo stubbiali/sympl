@@ -40,7 +40,12 @@ from sympl._core.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from sympl._core.typing import DataArray, DataArrayDict, PropertyDict
+    from sympl._core.typing import (
+        DataArray,
+        DataArrayDict,
+        NDArrayLikeDict,
+        PropertyDict,
+    )
 
 
 def fill_dims_wildcard(
@@ -282,3 +287,24 @@ def extract_output_dims_properties(
             out[name] = input_properties[name]["dims"]
 
     return out
+
+
+def get_dim_lengths_from_raw_input(
+    raw_input: "NDArrayLikeDict", input_properties: "PropertyDict"
+) -> Dict[str, int]:
+    dim_lengths = {}
+    for name, properties in input_properties.items():
+        if properties.get("tracer", False):
+            continue
+        if "alias" in properties:
+            name = properties["alias"]
+        for i, dim_name in enumerate(properties["dims"]):
+            if dim_name in dim_lengths:
+                if raw_input[name].shape[i] != dim_lengths[dim_name]:
+                    raise InvalidStateError(
+                        f"Dimension name {dim_name} has differing lengths on "
+                        f"different inputs."
+                    )
+            else:
+                dim_lengths[dim_name] = raw_input[name].shape[i]
+    return dim_lengths
