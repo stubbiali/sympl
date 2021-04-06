@@ -32,8 +32,10 @@
 import numpy as np
 
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.storage import get_arrays_with_properties
-from sympl._core.restore_dataarray import restore_data_arrays_with_properties
+from sympl._core.storage import (
+    get_arrays_with_properties,
+    restore_data_arrays_with_properties,
+)
 from sympl._core.units import units_are_same
 
 _tracer_unit_dict = {}

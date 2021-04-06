@@ -31,6 +31,7 @@
 #
 import abc
 from datetime import timedelta
+from typing import List, Optional, TYPE_CHECKING, Tuple
 
 try:
     from inspect import getfullargspec as getargspec
@@ -44,10 +45,15 @@ from sympl._core.checks import (
     OutputChecker,
 )
 from sympl._core.exceptions import InvalidPropertyDictError
-from sympl._core.restore_dataarray import restore_data_arrays_with_properties
 from sympl._core.tracers import TracerPacker
 from sympl._core.utils import get_kwarg_defaults
-from sympl._core.storage import get_arrays_with_properties
+from sympl._core.storage import (
+    get_arrays_with_properties,
+    restore_data_arrays_with_properties,
+)
+
+if TYPE_CHECKING:
+    from sympl._core.typing import DataArrayDict, NDArrayLikeDict, PropertyDict
 
 
 def is_component_class(cls):
@@ -77,7 +83,9 @@ class ComponentMeta(abc.ABCMeta):
             instance.__class__
         ) or not is_component_base_class(cls):
             return issubclass(instance.__class__, cls)
-        else:  # checking if non-inheriting instance is a duck-type of a component base class
+        else:
+            # checking if non-inheriting instance is a duck-type of a
+            # component base class
             (
                 required_attributes,
                 disallowed_attributes,
@@ -132,7 +140,7 @@ class ComponentMeta(abc.ABCMeta):
         return required_attributes, disallowed_attributes
 
 
-class Stepper(metaclass=ComponentMeta):
+class Stepper(abc.ABC, metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -170,48 +178,13 @@ class Stepper(metaclass=ComponentMeta):
     uses_tracers = False
     tracer_dims = None
 
-    @abc.abstractproperty
-    def input_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def diagnostic_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def output_properties(self):
-        return {}
-
-    def __str__(self):
-        return (
-            "instance of {}(Stepper)\n"
-            "    inputs: {}\n"
-            "    outputs: {}\n"
-            "    diagnostics: {}".format(
-                self.__class__,
-                self.input_properties.keys(),
-                self.output_properties.keys(),
-                self.diagnostic_properties.keys(),
-            )
-        )
-
-    def __repr__(self):
-        if hasattr(self, "_making_repr") and self._making_repr:
-            return "{}(recursive reference)".format(self.__class__)
-        else:
-            self._making_repr = True
-            return_value = "{}({})".format(
-                self.__class__,
-                "\n".join(
-                    "{}: {}".format(repr(key), repr(value))
-                    for key, value in self.__dict__.items()
-                    if key != "_making_repr"
-                ),
-            )
-            self._making_repr = False
-            return return_value
-
-    def __init__(self, tendencies_in_diagnostics=False, name=None):
+    def __init__(
+        self,
+        tendencies_in_diagnostics: bool = False,
+        name: Optional[str] = None,
+        *,
+        enable_checks: bool = True
+    ) -> None:
         """
         Initializes the Stepper object.
 
@@ -228,28 +201,187 @@ class Stepper(metaclass=ComponentMeta):
         """
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
-        super(Stepper, self).__init__()
-        self._input_checker = InputChecker(self)
-        self._diagnostic_checker = DiagnosticChecker(self)
-        self._output_checker = OutputChecker(self)
-        if tendencies_in_diagnostics:
-            self._diagnostic_checker.set_ignored_diagnostics(
-                self._insert_tendency_properties()
-            )
-        self.__initialized = True
+        self._enable_checks = enable_checks
+
+        if enable_checks:
+            self._input_checker = InputChecker(self)
+            self._diagnostic_checker = DiagnosticChecker(self)
+            self._output_checker = OutputChecker(self)
+            if tendencies_in_diagnostics:
+                self._diagnostic_checker.ignored_diagnostics = (
+                    self._insert_tendency_properties()
+                )
+
         if self.uses_tracers:
             if self.tracer_dims is None:
                 raise ValueError(
-                    "Component of type {} must specify tracer_dims property "
-                    "when uses_tracers=True".format(self.__class__.__name__)
+                    f"Component of type {self.__class__.__name__} must specify "
+                    f"tracer_dims property when uses_tracers=True."
                 )
             prepend_tracers = getattr(self, "prepend_tracers", None)
             self._tracer_packer = TracerPacker(
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
-        super(Stepper, self).__init__()
 
-    def _insert_tendency_properties(self):
+        self.__initialized = True
+
+    def __str__(self) -> str:
+        return (
+            f"Instance of {self.__class__.__name__}(Stepper)\n"
+            f"    inputs: {', '.join(self.input_properties.keys())}\n"
+            f"    outputs: {', '.join(self.output_properties.keys())}\n"
+            f"    diagnostics: {', '.join(self.diagnostic_properties.keys())}"
+        )
+
+    def __repr__(self) -> str:
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return f"{self.__class__.__name__}(recursive reference)"
+        else:
+            self._making_repr = True
+            return_value = "{}({})".format(
+                self.__class__,
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
+            )
+            self._making_repr = False
+            return return_value
+
+    def __call__(
+        self, state: "DataArrayDict", timestep: timedelta
+    ) -> Tuple["DataArrayDict", "DataArrayDict"]:
+        """
+        Gets diagnostics from the current model state and steps the state
+        forward in time according to the timestep.
+
+        Args
+        ----
+        state : dict
+            A model state dictionary satisfying the input_properties of this
+            object.
+        timestep : timedelta
+            The amount of time to step forward.
+
+        Returns
+        -------
+        diagnostics : dict
+            Diagnostics from the timestep of the input state.
+        new_state : dict
+            A dictionary whose keys are strings indicating
+            state quantities and values are the value of those quantities
+            at the timestep after input state.
+
+        Raises
+        ------
+        KeyError
+            If a required quantity is missing from the state.
+        InvalidStateError
+            If state is not a valid input for the Stepper instance
+            for other reasons.
+        """
+        # inflow checks
+        if self._enable_checks:
+            self._check_self_is_initialized()
+            self._input_checker.check_inputs(state)
+
+        # extract raw state
+        raw_state = get_arrays_with_properties(
+            state, self.input_properties, enable_checks=self._enable_checks
+        )
+        if self.uses_tracers:
+            raw_state["tracers"] = self._tracer_packer.pack(state)
+        raw_state["time"] = state["time"]
+
+        # compute
+        raw_diagnostics, raw_new_state = self.array_call(raw_state, timestep)
+        if self.uses_tracers:
+            new_state = self._tracer_packer.unpack(
+                raw_new_state.pop("tracers"), state
+            )
+        else:
+            new_state = {}
+
+        # outflow checks
+        if self._enable_checks:
+            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+            self._output_checker.check_outputs(raw_new_state)
+
+        # compute first-order approximation to tendencies
+        if self.tendencies_in_diagnostics:
+            self._insert_tendencies_to_diagnostics(
+                raw_state, raw_new_state, timestep, raw_diagnostics
+            )
+
+        # wrap output arrays in dataarrays
+        diagnostics = restore_data_arrays_with_properties(
+            raw_diagnostics,
+            self.diagnostic_properties,
+            state,
+            self.input_properties,
+            enable_checks=self._enable_checks,
+        )
+        new_state.update(
+            restore_data_arrays_with_properties(
+                raw_new_state,
+                self.output_properties,
+                state,
+                self.input_properties,
+                enable_checks=self._enable_checks,
+            )
+        )
+
+        return diagnostics, new_state
+
+    @property
+    def tendencies_in_diagnostics(self) -> bool:
+        return self._tendencies_in_diagnostics  # value cannot be modified
+
+    @property
+    @abc.abstractmethod
+    def input_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def diagnostic_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def output_properties(self) -> "PropertyDict":
+        pass
+
+    @abc.abstractmethod
+    def array_call(
+        self, state: "NDArrayLikeDict", timestep: timedelta
+    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
+        """
+        Gets diagnostics from the current model state and steps the state
+        forward in time according to the timestep.
+
+        Args
+        ----
+        state : dict
+            A numpy array state dictionary. Instead of data arrays, should
+            include numpy arrays that satisfy the input_properties of this
+            object.
+        timestep : timedelta
+            The amount of time to step forward.
+
+        Returns
+        -------
+        diagnostics : dict
+            Diagnostics from the timestep of the input state, as numpy arrays.
+        new_state : dict
+            A dictionary whose keys are strings indicating
+            state quantities and values are the value of those quantities
+            at the timestep after input state, as numpy arrays.
+        """
+        pass
+
+    def _insert_tendency_properties(self) -> List[str]:
         added_names = []
         for name, properties in self.output_properties.items():
             tendency_name = self._get_tendency_name(name)
@@ -296,96 +428,30 @@ class Stepper(metaclass=ComponentMeta):
             added_names.append(tendency_name)
         return added_names
 
-    def _get_tendency_name(self, name):
-        return "{}_tendency_from_{}".format(name, self.name)
+    def _get_tendency_name(self, name: str) -> str:
+        return f"{name}_tendency_from_{self.name}"
 
-    @property
-    def tendencies_in_diagnostics(self):
-        return self._tendencies_in_diagnostics  # value cannot be modified
-
-    def _check_self_is_initialized(self):
+    def _check_self_is_initialized(self) -> None:
         try:
             initialized = self.__initialized
         except AttributeError:
             initialized = False
         if not initialized:
             raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
+                f"Component has not called __init__ of base class, likely "
+                f"because its class {self.__class__.__name__} is missing a "
+                f"call to "
+                f"super({self.__class__.__name__}, self).__init__(**kwargs) "
+                f"in its __init__ method."
             )
-
-    def __call__(self, state, timestep):
-        """
-        Gets diagnostics from the current model state and steps the state
-        forward in time according to the timestep.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary satisfying the input_properties of this
-            object.
-        timestep : timedelta
-            The amount of time to step forward.
-
-        Returns
-        -------
-        diagnostics : dict
-            Diagnostics from the timestep of the input state.
-        new_state : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the timestep after input state.
-
-        Raises
-        ------
-        KeyError
-            If a required quantity is missing from the state.
-        InvalidStateError
-            If state is not a valid input for the Stepper instance
-            for other reasons.
-        """
-        self._check_self_is_initialized()
-        self._input_checker.check_inputs(state)
-        raw_state = get_arrays_with_properties(state, self.input_properties)
-        if self.uses_tracers:
-            raw_state["tracers"] = self._tracer_packer.pack(state)
-        raw_state["time"] = state["time"]
-        raw_diagnostics, raw_new_state = self.array_call(raw_state, timestep)
-        if self.uses_tracers:
-            new_state = self._tracer_packer.unpack(
-                raw_new_state.pop("tracers"), state
-            )
-        else:
-            new_state = {}
-        self._diagnostic_checker.check_diagnostics(raw_diagnostics)
-        self._output_checker.check_outputs(raw_new_state)
-        if self.tendencies_in_diagnostics:
-            self._insert_tendencies_to_diagnostics(
-                raw_state, raw_new_state, timestep, raw_diagnostics
-            )
-        diagnostics = restore_data_arrays_with_properties(
-            raw_diagnostics,
-            self.diagnostic_properties,
-            state,
-            self.input_properties,
-        )
-        new_state.update(
-            restore_data_arrays_with_properties(
-                raw_new_state,
-                self.output_properties,
-                state,
-                self.input_properties,
-            )
-        )
-        return diagnostics, new_state
 
     def _insert_tendencies_to_diagnostics(
-        self, raw_state, raw_new_state, timestep, raw_diagnostics
-    ):
+        self,
+        raw_state: "NDArrayLikeDict",
+        raw_new_state: "NDArrayLikeDict",
+        timestep: timedelta,
+        raw_diagnostics: "NDArrayLikeDict",
+    ) -> None:
         for name in self.output_properties.keys():
             tendency_name = self._get_tendency_name(name)
             raw_diagnostics[tendency_name] = (
@@ -394,34 +460,8 @@ class Stepper(metaclass=ComponentMeta):
                 * self.time_unit_timedelta.total_seconds()
             )
 
-    @abc.abstractmethod
-    def array_call(self, state, timestep):
-        """
-        Gets diagnostics from the current model state and steps the state
-        forward in time according to the timestep.
 
-        Args
-        ----
-        state : dict
-            A numpy array state dictionary. Instead of data arrays, should
-            include numpy arrays that satisfy the input_properties of this
-            object.
-        timestep : timedelta
-            The amount of time to step forward.
-
-        Returns
-        -------
-        diagnostics : dict
-            Diagnostics from the timestep of the input state, as numpy arrays.
-        new_state : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the timestep after input state, as numpy arrays.
-        """
-        pass
-
-
-class TendencyComponent(metaclass=ComponentMeta):
+class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -446,52 +486,18 @@ class TendencyComponent(metaclass=ComponentMeta):
         Y in the name "X_tendency_from_Y".
     """
 
-    @abc.abstractproperty
-    def input_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def tendency_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def diagnostic_properties(self):
-        return {}
-
     name = None
     uses_tracers = False
+    tracer_dims = None
     tracer_tendency_time_unit = "s^-1"
 
-    def __str__(self):
-        return (
-            "instance of {}(TendencyComponent)\n"
-            "    inputs: {}\n"
-            "    tendencies: {}\n"
-            "    diagnostics: {}".format(
-                self.__class__,
-                self.input_properties.keys(),
-                self.tendency_properties.keys(),
-                self.diagnostic_properties.keys(),
-            )
-        )
-
-    def __repr__(self):
-        if hasattr(self, "_making_repr") and self._making_repr:
-            return "{}(recursive reference)".format(self.__class__)
-        else:
-            self._making_repr = True
-            return_value = "{}({})".format(
-                self.__class__,
-                "\n".join(
-                    "{}: {}".format(repr(key), repr(value))
-                    for key, value in self.__dict__.items()
-                    if key != "_making_repr"
-                ),
-            )
-            self._making_repr = False
-            return return_value
-
-    def __init__(self, tendencies_in_diagnostics=False, name=None):
+    def __init__(
+        self,
+        tendencies_in_diagnostics: bool = False,
+        name: Optional[str] = None,
+        *,
+        enable_checks: bool = True
+    ) -> None:
         """
         Initializes the Stepper object.
 
@@ -507,67 +513,62 @@ class TendencyComponent(metaclass=ComponentMeta):
         """
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
-        self._input_checker = InputChecker(self)
-        self._tendency_checker = TendencyChecker(self)
-        self._diagnostic_checker = DiagnosticChecker(self)
-        if self.tendencies_in_diagnostics:
+        self._enable_checks = enable_checks
+
+        if enable_checks:
+            self._input_checker = InputChecker(self)
+            self._tendency_checker = TendencyChecker(self)
+            self._diagnostic_checker = DiagnosticChecker(self)
+
+        if tendencies_in_diagnostics:
             self._added_diagnostic_names = self._insert_tendency_properties()
-            self._diagnostic_checker.set_ignored_diagnostics(
-                self._added_diagnostic_names
-            )
+            if enable_checks:
+                self._diagnostic_checker.ignored_diagnostics = (
+                    self._added_diagnostic_names
+                )
         else:
             self._added_diagnostic_names = []
+
         if self.uses_tracers:
             if self.tracer_dims is None:
                 raise ValueError(
-                    "Component of type {} must specify tracer_dims property "
-                    "when uses_tracers=True".format(self.__class__.__name__)
+                    f"Component of type {self.__class__.__name__} must "
+                    f"specify tracer_dims property when uses_tracers=True."
                 )
             prepend_tracers = getattr(self, "prepend_tracers", None)
             self._tracer_packer = TracerPacker(
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
+
         self.__initialized = True
-        super(TendencyComponent, self).__init__()
 
-    @property
-    def tendencies_in_diagnostics(self):
-        return self._tendencies_in_diagnostics
+    def __str__(self) -> str:
+        return (
+            f"Instance of {self.__class__.__name__}(TendencyComponent)\n"
+            f"    inputs: {', '.join(self.input_properties.keys())}\n"
+            f"    tendencies: {', '.join(self.tendency_properties.keys())}\n"
+            f"    diagnostics: {', '.join(self.diagnostic_properties.keys())}"
+        )
 
-    def _insert_tendency_properties(self):
-        added_names = []
-        for name, properties in self.tendency_properties.items():
-            tendency_name = self._get_tendency_name(name)
-            if "dims" in properties.keys():
-                dims = properties["dims"]
-            else:
-                dims = self.input_properties[name]["dims"]
-            self.diagnostic_properties[tendency_name] = {
-                "units": properties["units"],
-                "dims": dims,
-            }
-            added_names.append(tendency_name)
-        return added_names
-
-    def _get_tendency_name(self, name):
-        return "{}_tendency_from_{}".format(name, self.name)
-
-    def _check_self_is_initialized(self):
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
+    def __repr__(self) -> str:
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return "{}(recursive reference)".format(self.__class__)
+        else:
+            self._making_repr = True
+            return_value = "{}({})".format(
+                self.__class__,
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
             )
+            self._making_repr = False
+            return return_value
 
-    def __call__(self, state):
+    def __call__(
+        self, state: "DataArrayDict"
+    ) -> Tuple["DataArrayDict", "DataArrayDict"]:
         """
         Gets tendencies and diagnostics from the passed model state.
 
@@ -596,13 +597,23 @@ class TendencyComponent(metaclass=ComponentMeta):
         InvalidStateError
             If state is not a valid input for the TendencyComponent instance.
         """
-        self._check_self_is_initialized()
-        self._input_checker.check_inputs(state)
-        raw_state = get_arrays_with_properties(state, self.input_properties)
+        # inflow checks
+        if self._enable_checks:
+            self._check_self_is_initialized()
+            self._input_checker.check_inputs(state)
+
+        # extract raw state
+        raw_state = get_arrays_with_properties(
+            state, self.input_properties, enable_checks=self._enable_checks
+        )
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
+
+        # compute
         raw_tendencies, raw_diagnostics = self.array_call(raw_state)
+
+        # process tracers
         if self.uses_tracers:
             out_tendencies = self._tracer_packer.unpack(
                 raw_tendencies.pop("tracers"),
@@ -611,14 +622,20 @@ class TendencyComponent(metaclass=ComponentMeta):
             )
         else:
             out_tendencies = {}
-        self._tendency_checker.check_tendencies(raw_tendencies)
-        self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # outflow checks
+        if self._enable_checks:
+            self._tendency_checker.check_tendencies(raw_tendencies)
+            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # wrap raw arrays into dataarrays
         out_tendencies.update(
             restore_data_arrays_with_properties(
                 raw_tendencies,
                 self.tendency_properties,
                 state,
                 self.input_properties,
+                enable_checks=self._enable_checks,
             )
         )
         diagnostics = restore_data_arrays_with_properties(
@@ -627,18 +644,36 @@ class TendencyComponent(metaclass=ComponentMeta):
             state,
             self.input_properties,
             ignore_names=self._added_diagnostic_names,
+            enable_checks=self._enable_checks,
         )
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
+
         return out_tendencies, diagnostics
 
-    def _insert_tendencies_to_diagnostics(self, tendencies, diagnostics):
-        for name, value in tendencies.items():
-            tendency_name = self._get_tendency_name(name)
-            diagnostics[tendency_name] = value
+    @property
+    def tendencies_in_diagnostics(self) -> bool:
+        return self._tendencies_in_diagnostics
+
+    @property
+    @abc.abstractmethod
+    def input_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def tendency_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def diagnostic_properties(self) -> "PropertyDict":
+        pass
 
     @abc.abstractmethod
-    def array_call(self, state):
+    def array_call(
+        self, state: "NDArrayLikeDict"
+    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
         """
         Gets tendencies and diagnostics from the passed model state.
 
@@ -664,8 +699,48 @@ class TendencyComponent(metaclass=ComponentMeta):
         """
         pass
 
+    def _insert_tendency_properties(self) -> List[str]:
+        added_names = []
+        for name, properties in self.tendency_properties.items():
+            tendency_name = self._get_tendency_name(name)
+            if "dims" in properties.keys():
+                dims = properties["dims"]
+            else:
+                dims = self.input_properties[name]["dims"]
+            self.diagnostic_properties[tendency_name] = {
+                "units": properties["units"],
+                "dims": dims,
+            }
+            added_names.append(tendency_name)
+        return added_names
 
-class ImplicitTendencyComponent(metaclass=ComponentMeta):
+    def _get_tendency_name(self, name: str) -> str:
+        return f"{name}_tendency_from_{self.name}"
+
+    def _check_self_is_initialized(self) -> None:
+        try:
+            initialized = self.__initialized
+        except AttributeError:
+            initialized = False
+        if not initialized:
+            raise RuntimeError(
+                "Component has not called __init__ of base class, likely "
+                "because its class {} is missing a call to "
+                "super({}, self).__init__(**kwargs) in its __init__ "
+                "method.".format(
+                    self.__class__.__name__, self.__class__.__name__
+                )
+            )
+
+    def _insert_tendencies_to_diagnostics(
+        self, tendencies: "DataArrayDict", diagnostics: "DataArrayDict"
+    ) -> None:
+        for name, value in tendencies.items():
+            tendency_name = self._get_tendency_name(name)
+            diagnostics[tendency_name] = value
+
+
+class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -690,52 +765,18 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
         Y in the name "X_tendency_from_Y".
     """
 
-    @abc.abstractproperty
-    def input_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def tendency_properties(self):
-        return {}
-
-    @abc.abstractproperty
-    def diagnostic_properties(self):
-        return {}
-
     name = None
     uses_tracers = False
+    tracer_dims = None
     tracer_tendency_time_unit = "s^-1"
 
-    def __str__(self):
-        return (
-            "instance of {}(TendencyComponent)\n"
-            "    inputs: {}\n"
-            "    tendencies: {}\n"
-            "    diagnostics: {}".format(
-                self.__class__,
-                self.input_properties.keys(),
-                self.tendency_properties.keys(),
-                self.diagnostic_properties.keys(),
-            )
-        )
-
-    def __repr__(self):
-        if hasattr(self, "_making_repr") and self._making_repr:
-            return "{}(recursive reference)".format(self.__class__)
-        else:
-            self._making_repr = True
-            return_value = "{}({})".format(
-                self.__class__,
-                "\n".join(
-                    "{}: {}".format(repr(key), repr(value))
-                    for key, value in self.__dict__.items()
-                    if key != "_making_repr"
-                ),
-            )
-            self._making_repr = False
-            return return_value
-
-    def __init__(self, tendencies_in_diagnostics=False, name=None):
+    def __init__(
+        self,
+        tendencies_in_diagnostics: bool = False,
+        name: Optional[str] = None,
+        *,
+        enable_checks: bool = True
+    ) -> None:
         """
         Initializes the Stepper object.
 
@@ -751,66 +792,62 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
         """
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
-        self._added_diagnostic_names = []
-        self._input_checker = InputChecker(self)
-        self._diagnostic_checker = DiagnosticChecker(self)
-        self._tendency_checker = TendencyChecker(self)
+        self._enable_checks = enable_checks
+
+        if enable_checks:
+            self._input_checker = InputChecker(self)
+            self._diagnostic_checker = DiagnosticChecker(self)
+            self._tendency_checker = TendencyChecker(self)
+
         if self.tendencies_in_diagnostics:
             self._added_diagnostic_names = self._insert_tendency_properties()
-            self._diagnostic_checker.set_ignored_diagnostics(
-                self._added_diagnostic_names
-            )
+            if enable_checks:
+                self._diagnostic_checker.ignored_diagnostics = (
+                    self._added_diagnostic_names
+                )
+        else:
+            self._added_diagnostic_names = []
+
         if self.uses_tracers:
             if self.tracer_dims is None:
                 raise ValueError(
-                    "Component of type {} must specify tracer_dims property "
-                    "when uses_tracers=True".format(self.__class__.__name__)
+                    f"Component of type {self.__class__.__name__} must "
+                    f"specify tracer_dims property when uses_tracers=True."
                 )
             prepend_tracers = getattr(self, "prepend_tracers", None)
             self._tracer_packer = TracerPacker(
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
+
         self.__initialized = True
-        super(ImplicitTendencyComponent, self).__init__()
 
-    @property
-    def tendencies_in_diagnostics(self):
-        return self._tendencies_in_diagnostics
+    def __str__(self) -> str:
+        return (
+            f"Instance of {self.__class__.__name__}(TendencyComponent)\n"
+            f"    inputs: {', '.join(self.input_properties.keys())}\n"
+            f"    tendencies: {', '.join(self.tendency_properties.keys())}\n"
+            f"    diagnostics: {', '.join(self.diagnostic_properties)}"
+        )
 
-    def _insert_tendency_properties(self):
-        added_names = []
-        for name, properties in self.tendency_properties.items():
-            tendency_name = self._get_tendency_name(name)
-            if "dims" in properties.keys():
-                dims = properties["dims"]
-            else:
-                dims = self.input_properties[name]["dims"]
-            self.diagnostic_properties[tendency_name] = {
-                "units": properties["units"],
-                "dims": dims,
-            }
-            added_names.append(tendency_name)
-        return added_names
-
-    def _get_tendency_name(self, name):
-        return "{}_tendency_from_{}".format(name, self.name)
-
-    def _check_self_is_initialized(self):
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
+    def __repr__(self) -> str:
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return "{}(recursive reference)".format(self.__class__)
+        else:
+            self._making_repr = True
+            return_value = "{}({})".format(
+                self.__class__,
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
             )
+            self._making_repr = False
+            return return_value
 
-    def __call__(self, state, timestep):
+    def __call__(
+        self, state: "DataArrayDict", timestep: timedelta
+    ) -> Tuple["DataArrayDict", "DataArrayDict"]:
         """
         Gets tendencies and diagnostics from the passed model state.
 
@@ -841,13 +878,23 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
         InvalidStateError
             If state is not a valid input for the TendencyComponent instance.
         """
-        self._check_self_is_initialized()
-        self._input_checker.check_inputs(state)
-        raw_state = get_arrays_with_properties(state, self.input_properties)
+        # inflow checks
+        if self._enable_checks:
+            self._check_self_is_initialized()
+            self._input_checker.check_inputs(state)
+
+        # extract raw state
+        raw_state = get_arrays_with_properties(
+            state, self.input_properties, enable_checks=self._enable_checks
+        )
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
+
+        # compute
         raw_tendencies, raw_diagnostics = self.array_call(raw_state, timestep)
+
+        # process tracers
         if self.uses_tracers:
             out_tendencies = self._tracer_packer.unpack(
                 raw_tendencies.pop("tracers"),
@@ -856,14 +903,20 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
             )
         else:
             out_tendencies = {}
-        self._tendency_checker.check_tendencies(raw_tendencies)
-        self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # outflow checks
+        if self._enable_checks:
+            self._tendency_checker.check_tendencies(raw_tendencies)
+            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # wrap arrays in dataarrays
         out_tendencies.update(
             restore_data_arrays_with_properties(
                 raw_tendencies,
                 self.tendency_properties,
                 state,
                 self.input_properties,
+                enable_checks=self._enable_checks,
             )
         )
         diagnostics = restore_data_arrays_with_properties(
@@ -872,19 +925,37 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
             state,
             self.input_properties,
             ignore_names=self._added_diagnostic_names,
+            enable_checks=self._enable_checks,
         )
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
         self._last_update_time = state["time"]
+
         return out_tendencies, diagnostics
 
-    def _insert_tendencies_to_diagnostics(self, tendencies, diagnostics):
-        for name, value in tendencies.items():
-            tendency_name = self._get_tendency_name(name)
-            diagnostics[tendency_name] = value
+    @property
+    def tendencies_in_diagnostics(self) -> bool:
+        return self._tendencies_in_diagnostics
+
+    @property
+    @abc.abstractmethod
+    def input_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def tendency_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def diagnostic_properties(self) -> "PropertyDict":
+        pass
 
     @abc.abstractmethod
-    def array_call(self, state, timestep):
+    def array_call(
+        self, state: "NDArrayLikeDict", timestep: timedelta
+    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
         """
         Gets tendencies and diagnostics from the passed model state.
 
@@ -910,6 +981,47 @@ class ImplicitTendencyComponent(metaclass=ComponentMeta):
             state quantities and values are the value of those quantities
             at the time of the input state, as numpy arrays.
         """
+        pass
+
+    def _insert_tendency_properties(self) -> List[str]:
+        added_names = []
+        for name, properties in self.tendency_properties.items():
+            tendency_name = self._get_tendency_name(name)
+            if "dims" in properties.keys():
+                dims = properties["dims"]
+            else:
+                dims = self.input_properties[name]["dims"]
+            self.diagnostic_properties[tendency_name] = {
+                "units": properties["units"],
+                "dims": dims,
+            }
+            added_names.append(tendency_name)
+        return added_names
+
+    def _get_tendency_name(self, name: str) -> str:
+        return f"{name}_tendency_from_{self.name}"
+
+    def _check_self_is_initialized(self) -> None:
+        try:
+            initialized = self.__initialized
+        except AttributeError:
+            initialized = False
+        if not initialized:
+            raise RuntimeError(
+                "Component has not called __init__ of base class, likely "
+                "because its class {} is missing a call to "
+                "super({}, self).__init__(**kwargs) in its __init__ "
+                "method.".format(
+                    self.__class__.__name__, self.__class__.__name__
+                )
+            )
+
+    def _insert_tendencies_to_diagnostics(
+        self, tendencies: "DataArrayDict", diagnostics: "DataArrayDict"
+    ) -> None:
+        for name, value in tendencies.items():
+            tendency_name = self._get_tendency_name(name)
+            diagnostics[tendency_name] = value
 
 
 class DiagnosticComponent(metaclass=ComponentMeta):
@@ -926,15 +1038,16 @@ class DiagnosticComponent(metaclass=ComponentMeta):
         'units'.
     """
 
-    @abc.abstractproperty
-    def input_properties(self):
-        return {}
+    def __init__(self, *, enable_checks: bool = True) -> None:
+        self._enable_checks = enable_checks
 
-    @abc.abstractproperty
-    def diagnostic_properties(self):
-        return {}
+        if enable_checks:
+            self._input_checker = InputChecker(self)
+            self._diagnostic_checker = DiagnosticChecker(self)
 
-    def __str__(self):
+        self.__initialized = True
+
+    def __str__(self) -> str:
         return (
             "instance of {}(DiagnosticComponent)\n"
             "    inputs: {}\n"
@@ -945,7 +1058,7 @@ class DiagnosticComponent(metaclass=ComponentMeta):
             )
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if hasattr(self, "_making_repr") and self._making_repr:
             return "{}(recursive reference)".format(self.__class__)
         else:
@@ -961,31 +1074,7 @@ class DiagnosticComponent(metaclass=ComponentMeta):
             self._making_repr = False
             return return_value
 
-    def __init__(self):
-        """
-        Initializes the Stepper object.
-        """
-        self._input_checker = InputChecker(self)
-        self._diagnostic_checker = DiagnosticChecker(self)
-        self.__initialized = True
-        super(DiagnosticComponent, self).__init__()
-
-    def _check_self_is_initialized(self):
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
-            )
-
-    def __call__(self, state):
+    def __call__(self, state: "DataArrayDict") -> "DataArrayDict":
         """
         Gets diagnostics from the passed model state.
 
@@ -1009,22 +1098,47 @@ class DiagnosticComponent(metaclass=ComponentMeta):
         InvalidStateError
             If state is not a valid input for the TendencyComponent instance.
         """
-        self._check_self_is_initialized()
-        self._input_checker.check_inputs(state)
-        raw_state = get_arrays_with_properties(state, self.input_properties)
+        # inflow checks
+        if self._enable_checks:
+            self._check_self_is_initialized()
+            self._input_checker.check_inputs(state)
+
+        # extract raw state
+        raw_state = get_arrays_with_properties(
+            state, self.input_properties, enable_checks=self._enable_checks
+        )
         raw_state["time"] = state["time"]
+
+        # compute
         raw_diagnostics = self.array_call(raw_state)
-        self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # outflow checks
+        if self._enable_checks:
+            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+
+        # wrap arrays in dataarrays
         diagnostics = restore_data_arrays_with_properties(
             raw_diagnostics,
             self.diagnostic_properties,
             state,
             self.input_properties,
+            enable_checks=self._enable_checks,
         )
+
         return diagnostics
 
+    @property
     @abc.abstractmethod
-    def array_call(self, state):
+    def input_properties(self) -> "PropertyDict":
+        pass
+
+    @property
+    @abc.abstractmethod
+    def diagnostic_properties(self) -> "PropertyDict":
+        pass
+
+    @abc.abstractmethod
+    def array_call(self, state: "NDArrayLikeDict") -> "NDArrayLikeDict":
         """
         Gets diagnostics from the passed model state.
 
@@ -1042,13 +1156,29 @@ class DiagnosticComponent(metaclass=ComponentMeta):
             state quantities and values are the value of those quantities
             at the time of the input state, as numpy arrays.
         """
+        pass
+
+    def _check_self_is_initialized(self) -> None:
+        try:
+            initialized = self.__initialized
+        except AttributeError:
+            initialized = False
+        if not initialized:
+            raise RuntimeError(
+                "Component has not called __init__ of base class, likely "
+                "because its class {} is missing a call to "
+                "super({}, self).__init__(**kwargs) in its __init__ "
+                "method.".format(
+                    self.__class__.__name__, self.__class__.__name__
+                )
+            )
 
 
-class Monitor(metaclass=ComponentMeta):
-    def __str__(self):
+class Monitor(abc.ABC, metaclass=ComponentMeta):
+    def __str__(self) -> str:
         return "instance of {}(Monitor)".format(self.__class__)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if hasattr(self, "_making_repr") and self._making_repr:
             return "{}(recursive reference)".format(self.__class__)
         else:
@@ -1065,7 +1195,7 @@ class Monitor(metaclass=ComponentMeta):
             return return_value
 
     @abc.abstractmethod
-    def store(self, state):
+    def store(self, state: "DataArrayDict") -> None:
         """
         Stores the given state in the Monitor and performs class-specific
         actions.
@@ -1080,3 +1210,4 @@ class Monitor(metaclass=ComponentMeta):
         InvalidStateError
             If state is not a valid input for the DiagnosticComponent instance.
         """
+        pass

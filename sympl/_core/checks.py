@@ -61,14 +61,15 @@ class DiagnosticChecker:
     def __init__(self, component: "Component") -> None:
         if not hasattr(component, "diagnostic_properties"):
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} is missing "
+                f"Component of type {component.__class__.__name__} is missing "
                 f"diagnostic_properties."
             )
         elif not isinstance(component.diagnostic_properties, dict):
             raise InvalidPropertyDictError(
-                f"diagnostic_properties on component of type {type(component)} "
-                f"is of type {type(component.input_properties)}, but "
-                f"should be an instance of dict."
+                f"diagnostic_properties on component of type "
+                f"{component.__class__.__name__} is of type "
+                f"{component.input_properties.__class__.__name__}, "
+                f"but should be an instance of dict."
             )
 
         for name, properties in component.diagnostic_properties.items():
@@ -91,7 +92,7 @@ class DiagnosticChecker:
         )
         if incompatible_name is not None:
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} has input "
+                f"Component of type {component.__class__.__name__} has input "
                 f"{incompatible_name} with diagnostic units "
                 f"{component.diagnostic_properties[incompatible_name]['units']} "
                 f"that are incompatible with input units "
@@ -134,8 +135,8 @@ class DiagnosticChecker:
 
         if len(missing_diagnostics) > 0:
             raise ComponentMissingOutputError(
-                f"Component {type(self.component)} did not compute "
-                f"diagnostic(s) {', '.join(missing_diagnostics)}."
+                f"Component {self.component.__class__.__name__} did not "
+                f"compute diagnostic(s) {', '.join(missing_diagnostics)}."
             )
 
     def _check_extra_diagnostics(self, diagnostic_dict: "FieldDict") -> None:
@@ -149,14 +150,14 @@ class DiagnosticChecker:
         extra_diagnostics = set(diagnostic_dict.keys()).difference(wanted_set)
         if len(extra_diagnostics) > 0:
             raise ComponentExtraOutputError(
-                f"Component {type(self.component)} computed diagnostic(s) "
-                f"{', '.join(extra_diagnostics)} which are not in "
-                f"diagnostic_properties."
+                f"Component {self.component.__class__.__name__} computed "
+                f"diagnostic(s) {', '.join(extra_diagnostics)} which are not "
+                f"in diagnostic_properties."
             )
 
     @property
-    def ignored_diagnostics(self) -> Tuple[str]:
-        return tuple(self._ignored_diagnostics)
+    def ignored_diagnostics(self) -> List[str]:
+        return self._ignored_diagnostics
 
     @ignored_diagnostics.setter
     def ignored_diagnostics(self, val: List[str]) -> None:
@@ -171,13 +172,14 @@ class InputChecker:
     def __init__(self, component: "Component") -> None:
         if not hasattr(component, "input_properties"):
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} is missing "
+                f"Component of type {component.__class__.__name__} is missing "
                 f"input_properties."
             )
         if not isinstance(component.input_properties, dict):
             raise InvalidPropertyDictError(
-                f"input_properties on component of type {type(component)} "
-                f"is of type {type(component.input_properties)}, "
+                f"input_properties on component of type "
+                f"{component.__class__.__name__} is of type "
+                f"{component.input_properties.__class__.__name__}, "
                 f"but should be an instance of dict."
             )
 
@@ -205,14 +207,15 @@ class OutputChecker:
     def __init__(self, component: "Component") -> None:
         if not hasattr(component, "output_properties"):
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} is missing "
+                f"Component of type {component.__class__.__name__} is missing "
                 f"output_properties."
             )
         elif not isinstance(component.output_properties, dict):
             raise InvalidPropertyDictError(
-                f"output_properties on component of type {type(component)} is "
-                f"of type {type(component(component.output_properties))}, but "
-                f"should be an instance of dict."
+                f"output_properties on component of type "
+                f"{component.__class__.__name__} is of type "
+                f"{component.output_properties.__class__.__name__}, "
+                f"but should be an instance of dict."
             )
 
         for name, properties in component.output_properties.items():
@@ -235,7 +238,7 @@ class OutputChecker:
         )
         if incompatible_name is not None:
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} has input "
+                f"Component of type {component.__class__.__name__} has input "
                 f"{incompatible_name} with output units "
                 f"{component.output_properties[incompatible_name]['units']} "
                 f"that are incompatible with input units "
@@ -271,8 +274,8 @@ class OutputChecker:
 
         if len(missing_outputs) > 0:
             raise ComponentMissingOutputError(
-                f"Component {type(self.component)} did not compute output(s) "
-                f"{', '.join(missing_outputs)}."
+                f"Component {self.component.__class__.__name__} did not "
+                f"compute output(s) {', '.join(missing_outputs)}."
             )
 
     def _check_extra_outputs(self, output_dict: "FieldDict") -> None:
@@ -286,8 +289,8 @@ class OutputChecker:
         extra_outputs = set(output_dict.keys()).difference(wanted_set)
         if len(extra_outputs) > 0:
             raise ComponentExtraOutputError(
-                f"Component {type(self.component)} computed output(s) "
-                f"{', '.join(extra_outputs)} which are not in "
+                f"Component {self.component.__class__.__name__} computed "
+                f"output(s) {', '.join(extra_outputs)} which are not in "
                 f"output_properties."
             )
 
@@ -300,13 +303,14 @@ class TendencyChecker:
     def __init__(self, component: "Component") -> None:
         if not hasattr(component, "tendency_properties"):
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} is missing "
+                f"Component of type {component.__class__.__name__} is missing "
                 f"tendency_properties."
             )
         if not isinstance(component.tendency_properties, dict):
             raise InvalidPropertyDictError(
-                f"tendency_properties on component of type {type(component)} "
-                f"is of type {type(component.input_properties)}, "
+                f"tendency_properties on component of type "
+                f"{component.__class__.__name__} is of type "
+                f"{component.input_properties.__class__.__name__}, "
                 f"but should be an instance of dict."
             )
 
@@ -329,7 +333,7 @@ class TendencyChecker:
         )
         if incompatible_name is not None:
             raise InvalidPropertyDictError(
-                f"Component of type {type(component)} has input "
+                f"Component of type {component.__class__.__name__} has input "
                 f"{incompatible_name} with tendency units "
                 f"{component.tendency_properties[incompatible_name]['units']} "
                 f"that are incompatible with input units "
@@ -365,8 +369,8 @@ class TendencyChecker:
 
         if len(missing_tendencies) > 0:
             raise ComponentMissingOutputError(
-                f"Component {type(self.component)} did not compute tendencies "
-                f"for {', '.join(missing_tendencies)}."
+                f"Component {self.component.__class__.__name__} did not "
+                f"compute tendencies for {', '.join(missing_tendencies)}."
             )
 
     def _check_extra_tendencies(self, tendency_dict: "FieldDict") -> None:
@@ -380,8 +384,8 @@ class TendencyChecker:
         extra_tendencies = set(tendency_dict.keys()).difference(wanted_set)
         if len(extra_tendencies) > 0:
             raise ComponentExtraOutputError(
-                f"Component {type(self.component)} computed tendencies for "
-                f"{', '.join(extra_tendencies)} which are not in "
+                f"Component {self.component.__class__.__name__} computed "
+                f"tendencies for {', '.join(extra_tendencies)} which are not in "
                 f"tendency_properties."
             )
 
