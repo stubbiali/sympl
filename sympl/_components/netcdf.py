@@ -32,7 +32,6 @@
 import os
 from datetime import timedelta
 import numpy as np
-from six import string_types
 import xarray as xr
 
 try:
@@ -94,13 +93,13 @@ class NetCDFMonitor(Monitor):
         else:
             self._aliases = aliases
         for key, val in self._aliases.items():
-            if not isinstance(key, string_types):
+            if not isinstance(key, str):
                 raise TypeError(
                     "Bad alias key type: {}. Expected string.".format(
                         type(key)
                     )
                 )
-            elif not isinstance(val, string_types):
+            elif not isinstance(val, str):
                 raise TypeError(
                     "Bad alias value type: {}. Expected string.".format(
                         type(val)

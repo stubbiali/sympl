@@ -31,7 +31,6 @@
 #
 import abc
 from datetime import timedelta
-from six import add_metaclass
 
 try:
     from inspect import getfullargspec as getargspec
@@ -133,8 +132,7 @@ class ComponentMeta(abc.ABCMeta):
         return required_attributes, disallowed_attributes
 
 
-@add_metaclass(ComponentMeta)
-class Stepper(object):
+class Stepper(metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -423,8 +421,7 @@ class Stepper(object):
         pass
 
 
-@add_metaclass(ComponentMeta)
-class TendencyComponent(object):
+class TendencyComponent(metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -668,8 +665,7 @@ class TendencyComponent(object):
         pass
 
 
-@add_metaclass(ComponentMeta)
-class ImplicitTendencyComponent(object):
+class ImplicitTendencyComponent(metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -916,8 +912,7 @@ class ImplicitTendencyComponent(object):
         """
 
 
-@add_metaclass(ComponentMeta)
-class DiagnosticComponent(object):
+class DiagnosticComponent(metaclass=ComponentMeta):
     """
     Attributes
     ----------
@@ -1049,8 +1044,7 @@ class DiagnosticComponent(object):
         """
 
 
-@add_metaclass(abc.ABCMeta)
-class Monitor(object):
+class Monitor(metaclass=ComponentMeta):
     def __str__(self):
         return "instance of {}(Monitor)".format(self.__class__)
 
