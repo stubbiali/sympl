@@ -36,7 +36,7 @@ from sympl._core.data_array import DataArray
 from sympl._core.exceptions import InvalidStateError
 
 if TYPE_CHECKING:
-    from sympl._core.typing import Component
+    from sympl._core.typingx import Component
 
 try:
     from numba import jit

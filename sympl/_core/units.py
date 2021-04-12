@@ -34,7 +34,7 @@ import pint
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sympl._core.typing import DataArray, NDArrayLike, PropertyDict
+    from sympl._core.typingx import DataArray, NDArrayLike, PropertyDict
 
 
 class UnitRegistry(pint.UnitRegistry):

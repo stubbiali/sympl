@@ -53,7 +53,11 @@ from sympl._core.storage import (
 )
 
 if TYPE_CHECKING:
-    from sympl._core.typing import DataArrayDict, NDArrayLikeDict, PropertyDict
+    from sympl._core.typingx import (
+        DataArrayDict,
+        NDArrayLikeDict,
+        PropertyDict,
+    )
 
 
 def is_component_class(cls):

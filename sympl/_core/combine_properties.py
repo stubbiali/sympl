@@ -36,7 +36,7 @@ from sympl._core.tracers import get_tracer_input_properties
 from sympl._core.units import units_are_compatible
 
 if TYPE_CHECKING:
-    from sympl._core.typing import Component, PropertyDict
+    from sympl._core.typingx import Component, PropertyDict
 
 
 def combine_dims(dims1: Iterable[str], dims2: Iterable[str]) -> List[str]:

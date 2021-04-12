@@ -52,9 +52,8 @@ from sympl._core.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from sympl._core.typing import (
+    from sympl._core.typingx import (
         DataArrayDict,
-        NDArrayLike,
         NDArrayLikeDict,
         PropertyDict,
     )

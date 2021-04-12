@@ -54,5 +54,7 @@ DateTime = Union[datetime, sympl_datetime]
 DataArrayDict = Dict[str, Union[DateTime, DataArray]]
 NDArrayLike = TypeVar("NDArrayLike")
 NDArrayLikeDict = Dict[str, Union[DateTime, NDArrayLike]]
+Array = Union[DataArray, NDArrayLike]
+ArrayDict = Union[DataArrayDict, NDArrayLikeDict]
 Property = Dict[str, Union[str, Sequence[str]]]
 PropertyDict = Dict[str, Property]
