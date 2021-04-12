@@ -38,19 +38,18 @@ try:
 except ImportError:
     from inspect import getargspec
 
-from sympl._core.checks import (
-    InputChecker,
-    TendencyChecker,
-    DiagnosticChecker,
-    OutputChecker,
+from sympl._core.dynamic_checkers import (
+    InflowComponentChecker,
+    OutflowComponentChecker,
+)
+from sympl._core.dynamic_operators import (
+    InflowComponentOperator,
+    OutflowComponentOperator,
 )
 from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.static_checkers import StaticComponentChecker
 from sympl._core.tracers import TracerPacker
 from sympl._core.utils import get_kwarg_defaults
-from sympl._core.storage import (
-    get_arrays_with_properties,
-    restore_data_arrays_with_properties,
-)
 
 if TYPE_CHECKING:
     from sympl._core.typingx import (
@@ -81,7 +80,7 @@ def is_component_base_class(cls):
     )
 
 
-class ComponentMeta(abc.ABCMeta):
+class MetaComponent(abc.ABCMeta):
     def __instancecheck__(cls, instance):
         if is_component_class(
             instance.__class__
@@ -144,7 +143,12 @@ class ComponentMeta(abc.ABCMeta):
         return required_attributes, disallowed_attributes
 
 
-class Stepper(abc.ABC, metaclass=ComponentMeta):
+class BaseComponent(abc.ABC, metaclass=MetaComponent):
+    def __init__(self):
+        self.__initialized = True
+
+
+class Stepper(BaseComponent):
     """
     Attributes
     ----------
@@ -203,14 +207,27 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
             Y in the name "X_tendency_from_Y". By default the class name in
             lowercase is used.
         """
+        super().__init__()
+
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
         self._enable_checks = enable_checks
 
         if enable_checks:
-            self._input_checker = InputChecker(self)
-            self._diagnostic_checker = DiagnosticChecker(self)
-            self._output_checker = OutputChecker(self)
+            StaticComponentChecker.factory("input_properties").check(self)
+            StaticComponentChecker.factory("diagnostic_properties").check(self)
+            StaticComponentChecker.factory("output_properties").check(self)
+
+            self._input_checker = InflowComponentChecker.factory(
+                "input_properties"
+            )
+            self._diagnostic_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties"
+            )
+            self._output_checker = OutflowComponentChecker.factory(
+                "output_properties"
+            )
+
             if tendencies_in_diagnostics:
                 self._diagnostic_checker.ignored_diagnostics = (
                     self._insert_tendency_properties()
@@ -227,7 +244,15 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
 
-        self.__initialized = True
+        self._input_operator = InflowComponentOperator.factory(
+            "input_tendencies", self
+        )
+        self._diagnostic_operator = OutflowComponentOperator.factory(
+            "diagnostic_tendencies", self
+        )
+        self._output_operator = OutflowComponentOperator.factory(
+            "output_tendencies", self
+        )
 
     def __str__(self) -> str:
         return (
@@ -287,13 +312,10 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
         """
         # inflow checks
         if self._enable_checks:
-            self._check_self_is_initialized()
-            self._input_checker.check_inputs(state)
+            self._input_checker.check(state)
 
         # extract raw state
-        raw_state = get_arrays_with_properties(
-            state, self.input_properties, enable_checks=self._enable_checks
-        )
+        raw_state = self._input_operator.get_ndarray_dict(state)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -309,8 +331,8 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
 
         # outflow checks
         if self._enable_checks:
-            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
-            self._output_checker.check_outputs(raw_new_state)
+            self._diagnostic_checker.check(raw_diagnostics, state)
+            self._output_checker.check_outputs(raw_new_state, state)
 
         # compute first-order approximation to tendencies
         if self.tendencies_in_diagnostics:
@@ -319,21 +341,11 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
             )
 
         # wrap output arrays in dataarrays
-        diagnostics = restore_data_arrays_with_properties(
-            raw_diagnostics,
-            self.diagnostic_properties,
-            state,
-            self.input_properties,
-            enable_checks=self._enable_checks,
+        diagnostics = self._diagnostic_operator.get_dataarray_dict(
+            raw_diagnostics, state
         )
         new_state.update(
-            restore_data_arrays_with_properties(
-                raw_new_state,
-                self.output_properties,
-                state,
-                self.input_properties,
-                enable_checks=self._enable_checks,
-            )
+            self._output_operator.get_dataarray_dict(raw_new_state, state)
         )
 
         return diagnostics, new_state
@@ -435,20 +447,6 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
     def _get_tendency_name(self, name: str) -> str:
         return f"{name}_tendency_from_{self.name}"
 
-    def _check_self_is_initialized(self) -> None:
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                f"Component has not called __init__ of base class, likely "
-                f"because its class {self.__class__.__name__} is missing a "
-                f"call to "
-                f"super({self.__class__.__name__}, self).__init__(**kwargs) "
-                f"in its __init__ method."
-            )
-
     def _insert_tendencies_to_diagnostics(
         self,
         raw_state: "NDArrayLikeDict",
@@ -465,7 +463,7 @@ class Stepper(abc.ABC, metaclass=ComponentMeta):
             )
 
 
-class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
+class TendencyComponent(BaseComponent):
     """
     Attributes
     ----------
@@ -500,7 +498,7 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
         tendencies_in_diagnostics: bool = False,
         name: Optional[str] = None,
         *,
-        enable_checks: bool = True
+        enable_checks: bool = False
     ) -> None:
         """
         Initializes the Stepper object.
@@ -515,14 +513,26 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
             Y in the name "X_tendency_from_Y". By default the class name in
             lowercase is used.
         """
+        super().__init__()
+
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
         self._enable_checks = enable_checks
 
         if enable_checks:
-            self._input_checker = InputChecker(self)
-            self._tendency_checker = TendencyChecker(self)
-            self._diagnostic_checker = DiagnosticChecker(self)
+            StaticComponentChecker.factory("input_properties").check(self)
+            StaticComponentChecker.factory("tendency_properties").check(self)
+            StaticComponentChecker.factory("diagnostic_properties").check(self)
+
+            self._input_checker = InflowComponentChecker.factory(
+                "input_properties", self
+            )
+            self._tendency_checker = OutflowComponentChecker.factory(
+                "tendency_properties", self
+            )
+            self._diagnostic_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties", self
+            )
 
         if tendencies_in_diagnostics:
             self._added_diagnostic_names = self._insert_tendency_properties()
@@ -544,7 +554,15 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
 
-        self.__initialized = True
+        self._input_operator = InflowComponentOperator.factory(
+            "input_properties", self
+        )
+        self._tendency_operator = OutflowComponentOperator.factory(
+            "tendency_properties", self
+        )
+        self._diagnostic_operator = OutflowComponentOperator.factory(
+            "diagnostic_properties", self
+        )
 
     def __str__(self) -> str:
         return (
@@ -603,13 +621,10 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
         """
         # inflow checks
         if self._enable_checks:
-            self._check_self_is_initialized()
-            self._input_checker.check_inputs(state)
+            self._input_checker.check(state)
 
         # extract raw state
-        raw_state = get_arrays_with_properties(
-            state, self.input_properties, enable_checks=self._enable_checks
-        )
+        raw_state = self._input_operator.get_ndarray_dict(state)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -629,26 +644,15 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
 
         # outflow checks
         if self._enable_checks:
-            self._tendency_checker.check_tendencies(raw_tendencies)
-            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+            self._tendency_checker.check(raw_tendencies, state)
+            self._diagnostic_checker.check(raw_diagnostics, state)
 
         # wrap raw arrays into dataarrays
         out_tendencies.update(
-            restore_data_arrays_with_properties(
-                raw_tendencies,
-                self.tendency_properties,
-                state,
-                self.input_properties,
-                enable_checks=self._enable_checks,
-            )
+            self._tendency_operator.get_dataarray_dict(raw_tendencies, state)
         )
-        diagnostics = restore_data_arrays_with_properties(
-            raw_diagnostics,
-            self.diagnostic_properties,
-            state,
-            self.input_properties,
-            ignore_names=self._added_diagnostic_names,
-            enable_checks=self._enable_checks,
+        diagnostics = self._diagnostic_operator.get_dataarray_dict(
+            raw_diagnostics, state
         )
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
@@ -721,21 +725,6 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
     def _get_tendency_name(self, name: str) -> str:
         return f"{name}_tendency_from_{self.name}"
 
-    def _check_self_is_initialized(self) -> None:
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
-            )
-
     def _insert_tendencies_to_diagnostics(
         self, tendencies: "DataArrayDict", diagnostics: "DataArrayDict"
     ) -> None:
@@ -744,7 +733,7 @@ class TendencyComponent(abc.ABC, metaclass=ComponentMeta):
             diagnostics[tendency_name] = value
 
 
-class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
+class ImplicitTendencyComponent(BaseComponent):
     """
     Attributes
     ----------
@@ -794,14 +783,26 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
             Y in the name "X_tendency_from_Y". By default the class name in
             lowercase is used.
         """
+        super().__init__()
+
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
         self.name = name or self.__class__.__name__
         self._enable_checks = enable_checks
 
         if enable_checks:
-            self._input_checker = InputChecker(self)
-            self._diagnostic_checker = DiagnosticChecker(self)
-            self._tendency_checker = TendencyChecker(self)
+            StaticComponentChecker.factory("input_properties").check(self)
+            StaticComponentChecker.factory("tendency_properties").check(self)
+            StaticComponentChecker.factory("diagnostic_properties").check(self)
+
+            self._input_checker = InflowComponentChecker.factory(
+                "input_properties", self
+            )
+            self._tendency_checker = OutflowComponentChecker.factory(
+                "tendency_properties", self
+            )
+            self._diagnostic_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties", self
+            )
 
         if self.tendencies_in_diagnostics:
             self._added_diagnostic_names = self._insert_tendency_properties()
@@ -823,7 +824,15 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
                 self, self.tracer_dims, prepend_tracers=prepend_tracers
             )
 
-        self.__initialized = True
+        self._input_operator = InflowComponentOperator.factory(
+            "input_properties", self
+        )
+        self._tendency_operator = OutflowComponentOperator.factory(
+            "tendency_properties", self
+        )
+        self._diagnostic_operator = OutflowComponentOperator.factory(
+            "diagnostic_properties", self
+        )
 
     def __str__(self) -> str:
         return (
@@ -884,13 +893,10 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
         """
         # inflow checks
         if self._enable_checks:
-            self._check_self_is_initialized()
-            self._input_checker.check_inputs(state)
+            self._input_checker.check(state)
 
         # extract raw state
-        raw_state = get_arrays_with_properties(
-            state, self.input_properties, enable_checks=self._enable_checks
-        )
+        raw_state = self._input_operator.get_ndarray_dict(state)
         if self.uses_tracers:
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
@@ -910,26 +916,15 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
 
         # outflow checks
         if self._enable_checks:
-            self._tendency_checker.check_tendencies(raw_tendencies)
-            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+            self._tendency_checker.check(raw_tendencies, state)
+            self._diagnostic_checker.check(raw_diagnostics, state)
 
         # wrap arrays in dataarrays
         out_tendencies.update(
-            restore_data_arrays_with_properties(
-                raw_tendencies,
-                self.tendency_properties,
-                state,
-                self.input_properties,
-                enable_checks=self._enable_checks,
-            )
+            self._tendency_operator.get_dataarray_dict(raw_tendencies, state)
         )
-        diagnostics = restore_data_arrays_with_properties(
-            raw_diagnostics,
-            self.diagnostic_properties,
-            state,
-            self.input_properties,
-            ignore_names=self._added_diagnostic_names,
-            enable_checks=self._enable_checks,
+        diagnostics = self._diagnostic_operator.get_dataarray_dict(
+            raw_diagnostics, state
         )
         if self.tendencies_in_diagnostics:
             self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
@@ -1005,21 +1000,6 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
     def _get_tendency_name(self, name: str) -> str:
         return f"{name}_tendency_from_{self.name}"
 
-    def _check_self_is_initialized(self) -> None:
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
-            )
-
     def _insert_tendencies_to_diagnostics(
         self, tendencies: "DataArrayDict", diagnostics: "DataArrayDict"
     ) -> None:
@@ -1028,7 +1008,7 @@ class ImplicitTendencyComponent(abc.ABC, metaclass=ComponentMeta):
             diagnostics[tendency_name] = value
 
 
-class DiagnosticComponent(metaclass=ComponentMeta):
+class DiagnosticComponent(BaseComponent):
     """
     Attributes
     ----------
@@ -1043,13 +1023,27 @@ class DiagnosticComponent(metaclass=ComponentMeta):
     """
 
     def __init__(self, *, enable_checks: bool = True) -> None:
+        super().__init__()
+
         self._enable_checks = enable_checks
 
         if enable_checks:
-            self._input_checker = InputChecker(self)
-            self._diagnostic_checker = DiagnosticChecker(self)
+            StaticComponentChecker.factory("input_properties").check(self)
+            StaticComponentChecker.factory("diagnostic_properties").check(self)
 
-        self.__initialized = True
+            self._input_checker = InflowComponentChecker.factory(
+                "input_properties", self
+            )
+            self._diagnostic_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties", self
+            )
+
+        self._input_operator = InflowComponentOperator.factory(
+            "input_properties", self
+        )
+        self._diagnostic_operator = OutflowComponentOperator.factory(
+            "diagnostic_properties", self
+        )
 
     def __str__(self) -> str:
         return (
@@ -1104,13 +1098,10 @@ class DiagnosticComponent(metaclass=ComponentMeta):
         """
         # inflow checks
         if self._enable_checks:
-            self._check_self_is_initialized()
-            self._input_checker.check_inputs(state)
+            self._input_checker.check(state)
 
         # extract raw state
-        raw_state = get_arrays_with_properties(
-            state, self.input_properties, enable_checks=self._enable_checks
-        )
+        raw_state = self._input_operator.get_ndarray_dict(state)
         raw_state["time"] = state["time"]
 
         # compute
@@ -1118,15 +1109,11 @@ class DiagnosticComponent(metaclass=ComponentMeta):
 
         # outflow checks
         if self._enable_checks:
-            self._diagnostic_checker.check_diagnostics(raw_diagnostics)
+            self._diagnostic_checker.check(raw_diagnostics, state)
 
         # wrap arrays in dataarrays
-        diagnostics = restore_data_arrays_with_properties(
-            raw_diagnostics,
-            self.diagnostic_properties,
-            state,
-            self.input_properties,
-            enable_checks=self._enable_checks,
+        diagnostics = self._diagnostic_operator.get_dataarray_dict(
+            raw_diagnostics, state
         )
 
         return diagnostics
@@ -1162,23 +1149,8 @@ class DiagnosticComponent(metaclass=ComponentMeta):
         """
         pass
 
-    def _check_self_is_initialized(self) -> None:
-        try:
-            initialized = self.__initialized
-        except AttributeError:
-            initialized = False
-        if not initialized:
-            raise RuntimeError(
-                "Component has not called __init__ of base class, likely "
-                "because its class {} is missing a call to "
-                "super({}, self).__init__(**kwargs) in its __init__ "
-                "method.".format(
-                    self.__class__.__name__, self.__class__.__name__
-                )
-            )
 
-
-class Monitor(abc.ABC, metaclass=ComponentMeta):
+class Monitor(BaseComponent):
     def __str__(self) -> str:
         return "instance of {}(Monitor)".format(self.__class__)
 
