@@ -39,12 +39,12 @@ try:
 except ImportError:
     nc4 = None
 
-from sympl._core.base_components import Monitor
 from sympl._core.data_array import DataArray
+from sympl._core.monitors import Monitor
 from sympl._core.exceptions import DependencyError, InvalidDataArrayDictError
+from sympl._core.time import datetime64_to_datetime
 from sympl._core.units import from_unit_to_another
 from sympl._core.utils import same_list
-from sympl._core.time import datetime64_to_datetime
 
 
 class NetCDFMonitor(Monitor):

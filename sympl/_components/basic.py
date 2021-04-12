@@ -29,7 +29,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from sympl._core.base_components import (
+from sympl._core.core_components import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
     TendencyComponent,

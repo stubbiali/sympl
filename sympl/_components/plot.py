@@ -29,9 +29,9 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from sympl._core.base_components import Monitor
 from sympl._core.data_array import DataArray
 from sympl._core.exceptions import DependencyError
+from sympl._core.monitors import Monitor
 
 
 def copy_state(state):

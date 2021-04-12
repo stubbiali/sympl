@@ -31,7 +31,7 @@
 #
 from sympl._core.data_array import DataArray
 from sympl._core.state import add, copy_untouched_quantities, multiply
-from sympl._core.tendency_stepper import TendencyStepper
+from sympl._core.steppers import TendencyStepper
 
 
 class SSPRungeKutta(TendencyStepper):

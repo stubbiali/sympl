@@ -43,12 +43,10 @@ from sympl._components.timesteppers import (
     Leapfrog,
     SSPRungeKutta,
 )
-from sympl._core.base_components import (
-    DiagnosticComponent,
-    ImplicitTendencyComponent,
-    Monitor,
-    Stepper,
+from sympl._core.core_components import (
     TendencyComponent,
+    ImplicitTendencyComponent,
+    DiagnosticComponent,
 )
 from sympl._core.combine_properties import combine_component_properties
 from sympl._core.composite import (
@@ -73,7 +71,8 @@ from sympl._core.exceptions import (
     InvalidDataArrayDictError,
     SharedKeyError,
 )
-from sympl._core.tendency_stepper import TendencyStepper
+from sympl._core.monitors import Monitor
+from sympl._core.steppers import TendencyStepper, Stepper
 from sympl._core.time import datetime
 from sympl._core.tracers import (
     get_tracer_input_properties,

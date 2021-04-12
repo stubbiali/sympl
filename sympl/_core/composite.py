@@ -29,14 +29,14 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from sympl._core.base_components import (
+from sympl._core.combine_properties import combine_component_properties
+from sympl._core.core_components import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
-    Monitor,
     TendencyComponent,
 )
-from sympl._core.combine_properties import combine_component_properties
 from sympl._core.exceptions import InvalidPropertyDictError
+from sympl._core.monitors import Monitor
 from sympl._core.utils import update_dict_by_adding_another
 
 # from sympl._core.dynamic_checkers import ensure_no_shared_keys

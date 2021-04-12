@@ -29,30 +29,49 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from datetime import datetime
-from typing import Any, Dict, Sequence, TypeVar, Union
+import abc
+from typing import TYPE_CHECKING
 
-from sympl._core.base_component import (
-    DiagnosticComponent,
-    ImplicitTendencyComponent,
-)
-from sympl import Stepper, TendencyComponent, Monitor
-from sympl._core.data_array import DataArray
-from sympl._core.time import datetime as sympl_datetime
+from sympl._core.base_component import BaseComponent
+
+if TYPE_CHECKING:
+    from sympl._core.typingx import DataArrayDict
 
 
-Component = Union[
-    DiagnosticComponent,
-    ImplicitTendencyComponent,
-    Monitor,
-    Stepper,
-    TendencyComponent,
-]
-DateTime = Union[datetime, sympl_datetime]
-DataArrayDict = Dict[str, Union[DateTime, DataArray]]
-NDArrayLike = TypeVar("NDArrayLike")
-NDArrayLikeDict = Dict[str, Union[DateTime, NDArrayLike]]
-Array = Union[DataArray, NDArrayLike]
-ArrayDict = Union[DataArrayDict, NDArrayLikeDict]
-Property = Dict[str, Union[str, Sequence[str]]]
-PropertyDict = Dict[str, Property]
+class Monitor(BaseComponent):
+    def __str__(self) -> str:
+        return "instance of {}(Monitor)".format(self.__class__)
+
+    def __repr__(self) -> str:
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return "{}(recursive reference)".format(self.__class__)
+        else:
+            self._making_repr = True
+            return_value = "{}({})".format(
+                self.__class__,
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
+            )
+            self._making_repr = False
+            return return_value
+
+    @abc.abstractmethod
+    def store(self, state: "DataArrayDict") -> None:
+        """
+        Stores the given state in the Monitor and performs class-specific
+        actions.
+
+        Args
+        ----
+        state: dict
+            A model state dictionary.
+
+        Raises
+        ------
+        InvalidStateError
+            If state is not a valid input for the DiagnosticComponent instance.
+        """
+        pass
