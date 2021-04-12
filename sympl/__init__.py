@@ -70,15 +70,8 @@ from sympl._core.exceptions import (
     ComponentMissingOutputError,
     DependencyError,
     InvalidPropertyDictError,
-    InvalidStateError,
+    InvalidDataArrayDictError,
     SharedKeyError,
-)
-from sympl._core.storage import (
-    get_arrays_with_properties,
-    initialize_numpy_arrays_with_properties,
-    restore_dimensions,
-    get_numpy_array,
-    restore_data_arrays_with_properties,
 )
 from sympl._core.tendency_stepper import TendencyStepper
 from sympl._core.time import datetime
@@ -97,9 +90,7 @@ from sympl._core.utils import (
     get_component_aliases,
     jit,
 )
-from sympl._core.checks import ensure_no_shared_keys
 from sympl._core.wrappers import ScalingWrapper, UpdateFrequencyWrapper
-from sympl._core.storage import get_arrays_with_properties
 
 __all__ = (
     TendencyComponent,
@@ -115,7 +106,7 @@ __all__ = (
     Leapfrog,
     AdamsBashforth,
     SSPRungeKutta,
-    InvalidStateError,
+    InvalidDataArrayDictError,
     SharedKeyError,
     DependencyError,
     InvalidPropertyDictError,
@@ -131,17 +122,11 @@ __all__ = (
     reset_constants,
     get_constants_string,
     TimeDifferencingWrapper,
-    ensure_no_shared_keys,
-    get_numpy_array,
     jit,
     register_tracer,
     get_tracer_unit_dict,
     get_tracer_input_properties,
     get_tracer_names,
-    restore_dimensions,
-    get_arrays_with_properties,
-    restore_data_arrays_with_properties,
-    initialize_numpy_arrays_with_properties,
     get_component_aliases,
     combine_component_properties,
     PlotFunctionMonitor,

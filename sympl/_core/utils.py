@@ -33,7 +33,7 @@ from inspect import getfullargspec as getargspec
 from typing import Any, Callable, Dict, Sequence, TYPE_CHECKING, Union
 
 from sympl._core.data_array import DataArray
-from sympl._core.exceptions import InvalidStateError
+from sympl._core.exceptions import InvalidDataArrayDictError
 
 if TYPE_CHECKING:
     from sympl._core.typingx import Component
@@ -79,7 +79,7 @@ def update_dict_by_adding_another(dict1: Dict, dict2: Dict) -> None:
                     "units" not in dict1[key].attrs
                     or "units" not in dict2[key].attrs
                 ):
-                    raise InvalidStateError(
+                    raise InvalidDataArrayDictError(
                         "DataArray objects must have units property defined"
                     )
                 try:

@@ -38,7 +38,8 @@ from sympl._core.base_components import (
 from sympl._core.combine_properties import combine_component_properties
 from sympl._core.exceptions import InvalidPropertyDictError
 from sympl._core.utils import update_dict_by_adding_another
-from sympl._core.checks import ensure_no_shared_keys
+
+# from sympl._core.dynamic_checkers import ensure_no_shared_keys
 
 
 class InputPropertiesCompositeMixin(object):
@@ -64,7 +65,7 @@ class DiagnosticPropertiesCompositeMixin(object):
     def diagnostic_properties(self):
         return_dict = {}
         for component in self.component_list:
-            ensure_no_shared_keys(component.diagnostic_properties, return_dict)
+            # ensure_no_shared_keys(component.diagnostic_properties, return_dict)
             return_dict.update(component.diagnostic_properties)
         for name, properties in return_dict.items():
             if "dims" not in properties.keys() and not (
@@ -331,7 +332,7 @@ class DiagnosticComponentComposite(
         for diagnostic_component in self.component_list:
             diagnostics = diagnostic_component(state)
             # ensure two diagnostics don't compute the same quantity
-            ensure_no_shared_keys(return_diagnostics, diagnostics)
+            # ensure_no_shared_keys(return_diagnostics, diagnostics)
             return_diagnostics.update(diagnostics)
         return return_diagnostics
 
