@@ -41,7 +41,7 @@ except ImportError:
 
 from sympl._core.base_components import Monitor
 from sympl._core.data_array import DataArray
-from sympl._core.exceptions import DependencyError, InvalidStateError
+from sympl._core.exceptions import DependencyError, InvalidDataArrayDictError
 from sympl._core.units import from_unit_to_another
 from sympl._core.utils import same_list
 from sympl._core.time import datetime64_to_datetime
@@ -202,7 +202,7 @@ class NetCDFMonitor(Monitor):
             reference_keys = reference_state.keys()
         for state in self._cached_state_dict.values():
             if not same_list(list(state.keys()), list(reference_keys)):
-                raise InvalidStateError(
+                raise InvalidDataArrayDictError(
                     "NetCDFMonitor was passed a different set of "
                     "quantities for different times: {} vs. {}".format(
                         list(reference_keys), list(state.keys())
@@ -395,12 +395,12 @@ def ensure_variable_is_compatible(variable, name, data):
         )
     for key, value in data.attrs.items():
         if key not in variable.ncattrs():
-            raise InvalidStateError(
+            raise InvalidDataArrayDictError(
                 "State has attr {} for quantity {} but this is not "
                 "present in the netCDF file".format(key, name)
             )
         elif value != variable.getncattr(key):
-            raise InvalidStateError(
+            raise InvalidDataArrayDictError(
                 "State has attr {} with value {} for quantity {} but "
                 "the value in the netCDF file is {}".format(
                     key, value, name, variable.getncattr(key)

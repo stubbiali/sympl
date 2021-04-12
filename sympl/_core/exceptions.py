@@ -45,11 +45,23 @@ class DimensionNotInOutDimsError(ValueError):
     pass
 
 
-class InvalidPropertyDictError(Exception):
+class FactoryError(Exception):
     pass
 
 
-class InvalidStateError(Exception):
+class InvalidArrayDictError(Exception):
+    pass
+
+
+class InvalidDataArrayDictError(Exception):
+    pass
+
+
+class InvalidNDArrayLikeDictError(Exception):
+    pass
+
+
+class InvalidPropertyDictError(Exception):
     pass
 
 

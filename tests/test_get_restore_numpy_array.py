@@ -37,7 +37,7 @@ import pytest
 from sympl import (
     DataArray,
     InvalidPropertyDictError,
-    InvalidStateError,
+    InvalidDataArrayDictError,
     get_numpy_array,
     get_arrays_with_properties,
     restore_data_arrays_with_properties,
@@ -648,7 +648,7 @@ class GetNumpyArraysWithPropertiesTests(unittest.TestCase):
             return_value = get_arrays_with_properties(
                 state, property_dictionary
             )
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         else:
             raise AssertionError("should have raised InvalidStateError")
@@ -668,7 +668,7 @@ class GetNumpyArraysWithPropertiesTests(unittest.TestCase):
             )
         except InvalidPropertyDictError:
             pass
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         else:
             raise AssertionError(
@@ -727,7 +727,7 @@ class GetNumpyArraysWithPropertiesTests(unittest.TestCase):
         }
         try:
             get_arrays_with_properties(input_state, input_properties)
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         else:
             raise AssertionError("should have raised InvalidStateError")
@@ -743,7 +743,7 @@ class GetNumpyArraysWithPropertiesTests(unittest.TestCase):
         }
         try:
             get_arrays_with_properties(input_state, input_properties)
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         else:
             raise AssertionError("should have raised InvalidStateError")

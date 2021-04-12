@@ -34,7 +34,7 @@ import pytest
 
 from sympl import (
     DataArray,
-    InvalidStateError,
+    InvalidDataArrayDictError,
     get_arrays_with_properties,
 )
 
@@ -116,7 +116,7 @@ def test_match_dims_like_hardcoded_dimensions_non_matching_lengths():
     }
     try:
         raw_arrays = get_arrays_with_properties(input_state, input_properties)
-    except InvalidStateError:
+    except InvalidDataArrayDictError:
         pass
     else:
         raise AssertionError("should have raised InvalidStateError")
@@ -169,7 +169,7 @@ def test_match_dims_like_wildcard_dimensions_non_matching_lengths():
     }
     try:
         raw_arrays = get_arrays_with_properties(input_state, input_properties)
-    except InvalidStateError:
+    except InvalidDataArrayDictError:
         pass
     else:
         raise AssertionError("should have raised InvalidStateError")

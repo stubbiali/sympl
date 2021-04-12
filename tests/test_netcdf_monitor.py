@@ -37,7 +37,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from sympl import DataArray, InvalidStateError, NetCDFMonitor
+from sympl import DataArray, InvalidDataArrayDictError, NetCDFMonitor
 
 random = np.random.RandomState(0)
 
@@ -492,7 +492,7 @@ def test_netcdf_monitor_raises_when_names_change_on_sequential_write():
         monitor.store(current_state)
         try:
             monitor.write()
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         except Exception as err:
             raise err
@@ -518,7 +518,7 @@ def test_netcdf_monitor_raises_when_names_change_on_batch_write():
         monitor.store(current_state)
         try:
             monitor.write()
-        except InvalidStateError:
+        except InvalidDataArrayDictError:
             pass
         except Exception as err:
             raise err

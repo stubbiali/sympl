@@ -42,7 +42,7 @@ from sympl import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
     InvalidPropertyDictError,
-    InvalidStateError,
+    InvalidDataArrayDictError,
     Monitor,
     Stepper,
     TendencyComponent,
@@ -249,7 +249,7 @@ class InputTestBase:
         input_properties = {"input1": {"dims": ["dim1"], "units": "m",}}
         component = self.get_component(input_properties=input_properties)
         state = {"time": timedelta(0)}
-        with self.assertRaises(InvalidStateError):
+        with self.assertRaises(InvalidDataArrayDictError):
             self.call_component(component, state)
 
     def test_raises_when_input_incorrect_units(self):
@@ -261,7 +261,7 @@ class InputTestBase:
                 np.zeros([10]), dims=["dim1"], attrs={"units": "s"},
             ),
         }
-        with self.assertRaises(InvalidStateError):
+        with self.assertRaises(InvalidDataArrayDictError):
             self.call_component(component, state)
 
     def test_raises_when_input_incorrect_dims(self):
@@ -273,7 +273,7 @@ class InputTestBase:
                 np.zeros([10]), dims=["dim2"], attrs={"units": "m"},
             ),
         }
-        with self.assertRaises(InvalidStateError):
+        with self.assertRaises(InvalidDataArrayDictError):
             self.call_component(component, state)
 
     def test_raises_when_input_conflicting_dim_lengths(self):
@@ -291,7 +291,7 @@ class InputTestBase:
                 np.zeros([7]), dims=["dim1"], attrs={"units": "m"},
             ),
         }
-        with self.assertRaises(InvalidStateError):
+        with self.assertRaises(InvalidDataArrayDictError):
             self.call_component(component, state)
 
     def test_collects_independent_wildcard_dims(self):
