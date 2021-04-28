@@ -64,37 +64,7 @@ if TYPE_CHECKING:
 
 
 class Stepper(BaseComponent):
-    """
-    Attributes
-    ----------
-    input_properties : dict
-        A dictionary whose keys are quantities required in the state when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    diagnostic_properties : dict
-        A dictionary whose keys are quantities for which values
-        for the old state are returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    output_properties : dict
-        A dictionary whose keys are quantities for which values
-        for the new state are returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    tendencies_in_diagnostics : bool
-        A boolean indicating whether this object will put tendencies of
-        quantities in its diagnostic output based on first order time
-        differencing of output values.
-    time_unit_name : str
-        The unit to use for time differencing when putting tendencies in
-        diagnostics.
-    time_unit_timedelta: timedelta
-        A timedelta corresponding to a single time unit as used for time
-        differencing when putting tendencies in diagnostics.
-    name : string
-        A label to be used for this object, for example as would be used for
-        Y in the name "X_tendency_from_Y".
-    """
+    """TODO."""
 
     time_unit_name = "s"
     time_unit_timedelta = timedelta(seconds=1)
@@ -108,20 +78,7 @@ class Stepper(BaseComponent):
         *,
         enable_checks: bool = True
     ) -> None:
-        """
-        Initializes the Stepper object.
-
-        Args
-        ----
-        tendencies_in_diagnostics : bool, optional
-            A boolean indicating whether this object will put tendencies of
-            quantities in its diagnostic output based on first order time
-            differencing of output values.
-        name : string, optional
-            A label to be used for this object, for example as would be used for
-            Y in the name "X_tendency_from_Y". By default the class name in
-            lowercase is used.
-        """
+        """TODO."""
         super().__init__()
 
         self._tendencies_in_diagnostics = tendencies_in_diagnostics
@@ -136,15 +93,21 @@ class Stepper(BaseComponent):
             self._input_checker = InflowComponentChecker.factory(
                 "input_properties"
             )
-            self._diagnostic_checker = OutflowComponentChecker.factory(
+            self._diagnostic_inflow_checker = InflowComponentChecker.factory(
                 "diagnostic_properties"
             )
-            self._output_checker = OutflowComponentChecker.factory(
+            self._diagnostic_outflow_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties"
+            )
+            self._output_inflow_checker = InflowComponentChecker.factory(
+                "output_properties"
+            )
+            self._output_outflow_checker = OutflowComponentChecker.factory(
                 "output_properties"
             )
 
             if tendencies_in_diagnostics:
-                self._diagnostic_checker.ignored_diagnostics = (
+                self._diagnostic_outflow_checker.ignored_diagnostics = (
                     self._insert_tendency_properties()
                 )
 
@@ -162,10 +125,16 @@ class Stepper(BaseComponent):
         self._input_operator = InflowComponentOperator.factory(
             "input_tendencies", self
         )
-        self._diagnostic_operator = OutflowComponentOperator.factory(
+        self._diagnostic_inflow_operator = InflowComponentOperator.factory(
             "diagnostic_tendencies", self
         )
-        self._output_operator = OutflowComponentOperator.factory(
+        self._diagnostic_outflow_operator = OutflowComponentOperator.factory(
+            "diagnostic_tendencies", self
+        )
+        self._output_inflow_operator = InflowComponentOperator.factory(
+            "output_tendencies", self
+        )
+        self._output_outflow_operator = OutflowComponentOperator.factory(
             "output_tendencies", self
         )
 
@@ -194,7 +163,12 @@ class Stepper(BaseComponent):
             return return_value
 
     def __call__(
-        self, state: "DataArrayDict", timestep: timedelta
+        self,
+        state: "DataArrayDict",
+        timestep: timedelta,
+        *,
+        out_diagnostics: Optional["DataArrayDict"],
+        out_state: Optional["DataArrayDict"]
     ) -> Tuple["DataArrayDict", "DataArrayDict"]:
         """
         Gets diagnostics from the current model state and steps the state
@@ -235,19 +209,61 @@ class Stepper(BaseComponent):
             raw_state["tracers"] = self._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
 
-        # compute
-        raw_diagnostics, raw_new_state = self.array_call(raw_state, timestep)
-        if self.uses_tracers:
-            new_state = self._tracer_packer.unpack(
-                raw_new_state.pop("tracers"), state
-            )
+        if out_diagnostics is None:
+            # allocate buffers for diagnostics
+            raw_diagnostics = {
+                name: self.allocate_diagnostic(name)
+                for name in self.diagnostic_properties
+            }
+
+            # run checks on raw_diagnostics
+            if self._enable_checks:
+                self._diagnostic_outflow_checker.check(raw_diagnostics, state)
         else:
-            new_state = {}
+            # run checks on out_diagnostics
+            if self._enable_checks:
+                self._diagnostic_inflow_checker.check(out_diagnostics)
+
+            # extract buffers for diagnostics
+            raw_diagnostics = self._diagnostic_inflow_operator.get_ndarray_dict(
+                out_diagnostics
+            )
+
+        if out_state is None:
+            # allocate buffers for new state
+            raw_new_state = {
+                name: self.allocate_output(name)
+                for name in self.output_properties
+            }
+
+            # run checks on raw_new_state
+            if self._enable_checks:
+                self._output_outflow_checker.check(raw_new_state, state)
+        else:
+            # run checks on out_state
+            if self._enable_checks:
+                self._output_inflow_checker.check(out_state)
+
+            # extract buffers for diagnostics
+            raw_new_state = self._output_inflow_operator.get_ndarray_dict(
+                out_state
+            )
+
+        # compute
+        raw_diagnostics, raw_new_state = self.array_call(
+            raw_state, timestep, raw_diagnostics, raw_new_state
+        )
+        # if self.uses_tracers:
+        #     new_state = self._tracer_packer.unpack(
+        #         raw_new_state.pop("tracers"), state
+        #     )
+        # else:
+        #     new_state = {}
 
         # outflow checks
         if self._enable_checks:
-            self._diagnostic_checker.check(raw_diagnostics, state)
-            self._output_checker.check_outputs(raw_new_state, state)
+            self._diagnostic_outflow_checker.check(raw_diagnostics, state)
+            self._output_outflow_checker.check_outputs(raw_new_state, state)
 
         # compute first-order approximation to tendencies
         if self.tendencies_in_diagnostics:
@@ -256,11 +272,11 @@ class Stepper(BaseComponent):
             )
 
         # wrap output arrays in dataarrays
-        diagnostics = self._diagnostic_operator.get_dataarray_dict(
-            raw_diagnostics, state
+        diagnostics = self._diagnostic_outflow_operator.get_dataarray_dict(
+            raw_diagnostics, state, out=out_diagnostics
         )
-        new_state.update(
-            self._output_operator.get_dataarray_dict(raw_new_state, state)
+        new_state = self._output_outflow_operator.get_dataarray_dict(
+            raw_new_state, state, out=out_state
         )
 
         return diagnostics, new_state
@@ -285,32 +301,22 @@ class Stepper(BaseComponent):
         pass
 
     @abc.abstractmethod
-    def array_call(
-        self, state: "NDArrayLikeDict", timestep: timedelta
-    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
-        """
-        Gets diagnostics from the current model state and steps the state
-        forward in time according to the timestep.
-
-        Args
-        ----
-        state : dict
-            A numpy array state dictionary. Instead of data arrays, should
-            include numpy arrays that satisfy the input_properties of this
-            object.
-        timestep : timedelta
-            The amount of time to step forward.
-
-        Returns
-        -------
-        diagnostics : dict
-            Diagnostics from the timestep of the input state, as numpy arrays.
-        new_state : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the timestep after input state, as numpy arrays.
-        """
+    def allocate_diagnostic(self, name) -> "NDArrayLikeDict":
         pass
+
+    @abc.abstractmethod
+    def allocate_output(self, name) -> "NDArrayLikeDict":
+        pass
+
+    @abc.abstractmethod
+    def array_call(
+        self,
+        state: "NDArrayLikeDict",
+        timestep: timedelta,
+        out_diagnostics: "NDArrayLikeDict",
+        out_state: "NDArrayLikeDict",
+    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
+        """TODO."""
 
     def _insert_tendency_properties(self) -> List[str]:
         added_names = []
