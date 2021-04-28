@@ -30,7 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
-from typing import List, Optional, TYPE_CHECKING, Tuple
+from typing import Dict, List, Optional, TYPE_CHECKING, Tuple, Union
 
 from sympl._core.base_component import BaseComponent
 from sympl._core.dynamic_checkers import (
@@ -48,28 +48,22 @@ if TYPE_CHECKING:
     from datetime import timedelta
     from sympl._core.typingx import (
         DataArrayDict,
+        NDArrayLike,
         NDArrayLikeDict,
         PropertyDict,
     )
 
 
 class DiagnosticComponent(BaseComponent):
-    """
-    Attributes
-    ----------
-    input_properties : dict
-        A dictionary whose keys are quantities required in the state when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    diagnostic_properties : dict
-        A dictionary whose keys are diagnostic quantities returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    """
+    """TODO."""
+
+    name = None
 
     def __init__(self, *, enable_checks: bool = True) -> None:
+        """TODO."""
         super().__init__()
 
+        self.name = self.__class__.__name__
         self._enable_checks = enable_checks
 
         if enable_checks:
@@ -79,14 +73,20 @@ class DiagnosticComponent(BaseComponent):
             self._input_checker = InflowComponentChecker.factory(
                 "input_properties", self
             )
-            self._diagnostic_checker = OutflowComponentChecker.factory(
+            self._diagnostic_inflow_checker = InflowComponentChecker.factory(
+                "diagnostic_properties", self
+            )
+            self._diagnostic_outflow_checker = OutflowComponentChecker.factory(
                 "diagnostic_properties", self
             )
 
         self._input_operator = InflowComponentOperator.factory(
             "input_properties", self
         )
-        self._diagnostic_operator = OutflowComponentOperator.factory(
+        self._diagnostic_inflow_operator = InflowComponentOperator.factory(
+            "diagnostic_properties", self
+        )
+        self._diagnostic_outflow_operator = OutflowComponentOperator.factory(
             "diagnostic_properties", self
         )
 
@@ -117,30 +117,10 @@ class DiagnosticComponent(BaseComponent):
             self._making_repr = False
             return return_value
 
-    def __call__(self, state: "DataArrayDict") -> "DataArrayDict":
-        """
-        Gets diagnostics from the passed model state.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary satisfying the input_properties of this
-            object.
-
-        Returns
-        -------
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state.
-
-        Raises
-        ------
-        KeyError
-            If a required quantity is missing from the state.
-        InvalidStateError
-            If state is not a valid input for the TendencyComponent instance.
-        """
+    def __call__(
+        self, state: "DataArrayDict", *, out: Optional["DataArrayDict"] = None,
+    ) -> "DataArrayDict":
+        """TODO."""
         # inflow checks
         if self._enable_checks:
             self._input_checker.check(state)
@@ -149,16 +129,37 @@ class DiagnosticComponent(BaseComponent):
         raw_state = self._input_operator.get_ndarray_dict(state)
         raw_state["time"] = state["time"]
 
+        # run checks on out
+        out = out if out is not None else {}
+        if self._enable_checks:
+            self._diagnostic_inflow_checker.check(out, state)
+
+        # extract or allocate output buffers
+        raw_diagnostics = self._diagnostic_inflow_operator.get_ndarray_dict(
+            out
+        )
+        raw_diagnostics.update(
+            {
+                name: self.allocate_diagnostic(name)
+                for name in self.diagnostic_properties
+                if name not in out
+            }
+        )
+
+        # run checks on raw_diagnostics
+        if self._enable_checks:
+            self._diagnostic_outflow_checker.check(raw_diagnostics, state)
+
         # compute
-        raw_diagnostics = self.array_call(raw_state)
+        self.array_call(raw_state, raw_diagnostics)
 
         # outflow checks
         if self._enable_checks:
-            self._diagnostic_checker.check(raw_diagnostics, state)
+            self._diagnostic_outflow_checker.check(raw_diagnostics, state)
 
         # wrap arrays in dataarrays
-        diagnostics = self._diagnostic_operator.get_dataarray_dict(
-            raw_diagnostics, state
+        diagnostics = self._diagnostic_outflow_operator.get_dataarray_dict(
+            raw_diagnostics, state, out=out
         )
 
         return diagnostics
@@ -166,59 +167,226 @@ class DiagnosticComponent(BaseComponent):
     @property
     @abc.abstractmethod
     def input_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @property
     @abc.abstractmethod
     def diagnostic_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @abc.abstractmethod
-    def array_call(self, state: "NDArrayLikeDict") -> "NDArrayLikeDict":
-        """
-        Gets diagnostics from the passed model state.
+    def allocate_diagnostic(self, name: str) -> "NDArrayLike":
+        """TODO."""
+        pass
 
-        Args
-        ----
-        state : dict
-            A model state dictionary. Instead of data arrays, should
-            include numpy arrays that satisfy the input_properties of this
-            object.
-
-        Returns
-        -------
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state, as numpy arrays.
-        """
+    @abc.abstractmethod
+    def array_call(
+        self, state: "NDArrayLikeDict", out: "NDArrayLikeDict"
+    ) -> None:
+        """TODO."""
         pass
 
 
+class TendencyComponentUtils:
+    @staticmethod
+    def init(
+        component: Union["ImplicitTendencyComponent", "TendencyComponent"],
+        tendencies_in_diagnostics: bool,
+        name: str,
+        enable_checks: bool,
+    ) -> Union["ImplicitTendencyComponent", "TendencyComponent"]:
+        component._tendencies_in_diagnostics = tendencies_in_diagnostics
+        component.name = name or component.__class__.__name__
+        component._enable_checks = enable_checks
+
+        if enable_checks:
+            StaticComponentChecker.factory("input_properties").check(component)
+            StaticComponentChecker.factory("tendency_properties").check(
+                component
+            )
+            StaticComponentChecker.factory("diagnostic_properties").check(
+                component
+            )
+
+            component._input_checker = InflowComponentChecker.factory(
+                "input_properties", component
+            )
+            component._tendency_inflow_checker = InflowComponentChecker.factory(
+                "tendency_properties", component
+            )
+            component._tendency_outflow_checker = OutflowComponentChecker.factory(
+                "tendency_properties", component
+            )
+            component._diagnostic_inflow_checker = InflowComponentChecker.factory(
+                "diagnostic_properties", component
+            )
+            component._diagnostic_outflow_checker = OutflowComponentChecker.factory(
+                "diagnostic_properties", component
+            )
+
+        if component.tendencies_in_diagnostics:
+            component._added_diagnostic_names = (
+                component._insert_tendency_properties()
+            )
+            if enable_checks:
+                component._diagnostic_inflow_checker.ignored_diagnostics = (
+                    component._added_diagnostic_names
+                )
+                component._diagnostic_outflow_checker.ignored_diagnostics = (
+                    component._added_diagnostic_names
+                )
+        else:
+            component._added_diagnostic_names = []
+
+        if component.uses_tracers:
+            if component.tracer_dims is None:
+                raise ValueError(
+                    f"Component of type {component.__class__.__name__} must "
+                    f"specify tracer_dims property when uses_tracers=True."
+                )
+            prepend_tracers = getattr(component, "prepend_tracers", None)
+            component._tracer_packer = TracerPacker(
+                component,
+                component.tracer_dims,
+                prepend_tracers=prepend_tracers,
+            )
+
+        component._input_operator = InflowComponentOperator.factory(
+            "input_properties", component
+        )
+        component._tendency_inflow_operator = InflowComponentOperator.factory(
+            "tendency_properties", component
+        )
+        component._tendency_outflow_operator = OutflowComponentOperator.factory(
+            "tendency_properties", component
+        )
+        component._diagnostic_inflow_operator = InflowComponentOperator.factory(
+            "diagnostic_properties", component
+        )
+        component._diagnostic_outflow_operator = OutflowComponentOperator.factory(
+            "diagnostic_properties", component
+        )
+
+        return component
+
+    @staticmethod
+    def preprocessing(
+        component: ["ImplicitTendencyComponent", "TendencyComponent"],
+        state: "DataArrayDict",
+        out_tendencies: Optional["DataArrayDict"],
+        out_diagnostics: Optional["DataArrayDict"],
+        overwrite_tendencies: Optional[Dict[str, bool]],
+    ) -> Tuple[
+        "NDArrayLikeDict",
+        "NDArrayLikeDict",
+        "NDArrayLikeDict",
+        Dict[str, bool],
+    ]:
+        # inflow checks
+        if component._enable_checks:
+            component._input_checker.check(state)
+
+        # extract raw state
+        raw_state = component._input_operator.get_ndarray_dict(state)
+        if component.uses_tracers:
+            raw_state["tracers"] = component._tracer_packer.pack(state)
+        raw_state["time"] = state["time"]
+
+        # run checks on out_tendencies
+        out_tendencies = out_tendencies if out_tendencies is not None else {}
+        if component._enable_checks:
+            component._tendency_inflow_checker.check(out_tendencies, state)
+
+        # extract or allocate buffers for tendencies
+        raw_tendencies = component._tendency_inflow_operator.get_ndarray_dict(
+            out_tendencies
+        )
+        raw_tendencies.update(
+            {
+                name: component.allocate_tendency(name)
+                for name in component.tendency_properties
+                if name not in out_tendencies
+            }
+        )
+
+        # run checks on raw_tendencies
+        if component._enable_checks:
+            component._tendency_outflow_checker.check(raw_tendencies, state)
+
+        # set overwrite_tendencies
+        overwrite_tendencies = overwrite_tendencies or {}
+        for name in component.tendency_properties:
+            overwrite_tendencies.setdefault(name, True)
+
+        # run checks on out
+        out_diagnostics = (
+            out_diagnostics if out_diagnostics is not None else {}
+        )
+        if component._enable_checks:
+            component._diagnostic_inflow_checker.check(out_diagnostics, state)
+
+        # extract or allocate output buffers
+        raw_diagnostics = component._diagnostic_inflow_operator.get_ndarray_dict(
+            out_diagnostics
+        )
+        raw_diagnostics.update(
+            {
+                name: component.allocate_diagnostic(name)
+                for name in component.diagnostic_properties
+                if name not in out_diagnostics
+            }
+        )
+
+        # run checks on raw_diagnostics
+        if component._enable_checks:
+            component._diagnostic_outflow_checker.check(raw_diagnostics, state)
+
+        return raw_state, raw_tendencies, raw_diagnostics, overwrite_tendencies
+
+    @staticmethod
+    def postprocessing(
+        component: Union["ImplicitTendencyComponent", "TendencyComponent"],
+        state: "DataArrayDict",
+        out_tendencies: Optional["DataArrayDict"],
+        out_diagnostics: Optional["DataArrayDict"],
+        raw_tendencies: "NDArrayLikeDict",
+        raw_diagnostics: "NDArrayLikeDict",
+    ) -> Tuple["DataArrayDict", "DataArrayDict"]:
+        # # process tracers
+        # if component.uses_tracers:
+        #     out_tendencies = component._tracer_packer.unpack(
+        #         raw_tendencies.pop("tracers"),
+        #         state,
+        #         multiply_unit=component.tracer_tendency_time_unit,
+        #     )
+        # else:
+        #     out_tendencies = {}
+
+        # outflow checks
+        if component._enable_checks:
+            component._tendency_outflow_checker.check(raw_tendencies, state)
+            component._diagnostic_outflow_checker.check(raw_diagnostics, state)
+
+        # wrap arrays in dataarrays
+        tendencies = component._tendency_outflow_operator.get_dataarray_dict(
+            raw_tendencies, state, out=out_tendencies
+        )
+        diagnostics = component._diagnostic_outflow_operator.get_dataarray_dict(
+            raw_diagnostics, state, out=out_diagnostics
+        )
+        if component.tendencies_in_diagnostics:
+            component._insert_tendencies_to_diagnostics(
+                tendencies, diagnostics
+            )
+        component._last_update_time = state["time"]
+
+        return tendencies, diagnostics
+
+
 class ImplicitTendencyComponent(BaseComponent):
-    """
-    Attributes
-    ----------
-    input_properties : dict
-        A dictionary whose keys are quantities required in the state when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    tendency_properties : dict
-        A dictionary whose keys are quantities for which tendencies are returned
-        when the object is called, and values are dictionaries which indicate
-        'dims' and 'units'.
-    diagnostic_properties : dict
-        A dictionary whose keys are diagnostic quantities returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    tendencies_in_diagnostics : bool
-        A boolean indicating whether this object will put tendencies of
-        quantities in its diagnostic output based on first order time
-        differencing of output values.
-    name : string
-        A label to be used for this object, for example as would be used for
-        Y in the name "X_tendency_from_Y".
-    """
+    """TODO."""
 
     name = None
     uses_tracers = False
@@ -232,68 +400,10 @@ class ImplicitTendencyComponent(BaseComponent):
         *,
         enable_checks: bool = True
     ) -> None:
-        """
-        Initializes the Stepper object.
-
-        Args
-        ----
-        tendencies_in_diagnostics : bool, optional
-            A boolean indicating whether this object will put tendencies of
-            quantities in its diagnostic output.
-        name : string, optional
-            A label to be used for this object, for example as would be used for
-            Y in the name "X_tendency_from_Y". By default the class name in
-            lowercase is used.
-        """
+        """TODO."""
         super().__init__()
-
-        self._tendencies_in_diagnostics = tendencies_in_diagnostics
-        self.name = name or self.__class__.__name__
-        self._enable_checks = enable_checks
-
-        if enable_checks:
-            StaticComponentChecker.factory("input_properties").check(self)
-            StaticComponentChecker.factory("tendency_properties").check(self)
-            StaticComponentChecker.factory("diagnostic_properties").check(self)
-
-            self._input_checker = InflowComponentChecker.factory(
-                "input_properties", self
-            )
-            self._tendency_checker = OutflowComponentChecker.factory(
-                "tendency_properties", self
-            )
-            self._diagnostic_checker = OutflowComponentChecker.factory(
-                "diagnostic_properties", self
-            )
-
-        if self.tendencies_in_diagnostics:
-            self._added_diagnostic_names = self._insert_tendency_properties()
-            if enable_checks:
-                self._diagnostic_checker.ignored_diagnostics = (
-                    self._added_diagnostic_names
-                )
-        else:
-            self._added_diagnostic_names = []
-
-        if self.uses_tracers:
-            if self.tracer_dims is None:
-                raise ValueError(
-                    f"Component of type {self.__class__.__name__} must "
-                    f"specify tracer_dims property when uses_tracers=True."
-                )
-            prepend_tracers = getattr(self, "prepend_tracers", None)
-            self._tracer_packer = TracerPacker(
-                self, self.tracer_dims, prepend_tracers=prepend_tracers
-            )
-
-        self._input_operator = InflowComponentOperator.factory(
-            "input_properties", self
-        )
-        self._tendency_operator = OutflowComponentOperator.factory(
-            "tendency_properties", self
-        )
-        self._diagnostic_operator = OutflowComponentOperator.factory(
-            "diagnostic_properties", self
+        TendencyComponentUtils.init(
+            self, tendencies_in_diagnostics, name, enable_checks
         )
 
     def __str__(self) -> str:
@@ -321,127 +431,89 @@ class ImplicitTendencyComponent(BaseComponent):
             return return_value
 
     def __call__(
-        self, state: "DataArrayDict", timestep: "timedelta"
+        self,
+        state: "DataArrayDict",
+        timestep: "timedelta",
+        *,
+        out_tendencies: Optional["DataArrayDict"] = None,
+        out_diagnostics: Optional["DataArrayDict"] = None,
+        overwrite_tendencies: Optional[Dict[str, bool]] = None,
     ) -> Tuple["DataArrayDict", "DataArrayDict"]:
-        """
-        Gets tendencies and diagnostics from the passed model state.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary satisfying the input_properties of this
-            object.
-        timestep : timedelta
-            The time over which the model is being stepped.
-
-        Returns
-        -------
-        tendencies : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the time derivative of those
-            quantities in units/second at the time of the input state.
-
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state.
-
-        Raises
-        ------
-        KeyError
-            If a required quantity is missing from the state.
-        InvalidStateError
-            If state is not a valid input for the TendencyComponent instance.
-        """
-        # inflow checks
-        if self._enable_checks:
-            self._input_checker.check(state)
-
-        # extract raw state
-        raw_state = self._input_operator.get_ndarray_dict(state)
-        if self.uses_tracers:
-            raw_state["tracers"] = self._tracer_packer.pack(state)
-        raw_state["time"] = state["time"]
+        """TODO."""
+        # pre-processing
+        (
+            raw_state,
+            raw_tendencies,
+            raw_diagnostics,
+            overwrite_tendencies,
+        ) = TendencyComponentUtils.preprocessing(
+            self, state, out_tendencies, out_diagnostics, overwrite_tendencies
+        )
 
         # compute
-        raw_tendencies, raw_diagnostics = self.array_call(raw_state, timestep)
-
-        # process tracers
-        if self.uses_tracers:
-            out_tendencies = self._tracer_packer.unpack(
-                raw_tendencies.pop("tracers"),
-                state,
-                multiply_unit=self.tracer_tendency_time_unit,
-            )
-        else:
-            out_tendencies = {}
-
-        # outflow checks
-        if self._enable_checks:
-            self._tendency_checker.check(raw_tendencies, state)
-            self._diagnostic_checker.check(raw_diagnostics, state)
-
-        # wrap arrays in dataarrays
-        out_tendencies.update(
-            self._tendency_operator.get_dataarray_dict(raw_tendencies, state)
+        self.array_call(
+            raw_state,
+            timestep,
+            raw_tendencies,
+            raw_diagnostics,
+            overwrite_tendencies,
         )
-        diagnostics = self._diagnostic_operator.get_dataarray_dict(
-            raw_diagnostics, state
-        )
-        if self.tendencies_in_diagnostics:
-            self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
-        self._last_update_time = state["time"]
 
-        return out_tendencies, diagnostics
+        # post-processing
+        tendencies, diagnostics = TendencyComponentUtils.postprocessing(
+            self,
+            state,
+            out_tendencies,
+            out_diagnostics,
+            raw_tendencies,
+            raw_diagnostics,
+        )
+
+        return tendencies, diagnostics
 
     @property
     def tendencies_in_diagnostics(self) -> bool:
+        """TODO."""
         return self._tendencies_in_diagnostics
 
     @property
     @abc.abstractmethod
     def input_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @property
     @abc.abstractmethod
     def tendency_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @property
     @abc.abstractmethod
     def diagnostic_properties(self) -> "PropertyDict":
+        """TODO."""
+        pass
+
+    @abc.abstractmethod
+    def allocate_tendency(self, name) -> "NDArrayLike":
+        """TODO."""
+        pass
+
+    @abc.abstractmethod
+    def allocate_diagnostic(self, name) -> "NDArrayLike":
+        """TODO."""
         pass
 
     @abc.abstractmethod
     def array_call(
-        self, state: "NDArrayLikeDict", timestep: "timedelta"
-    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
-        """
-        Gets tendencies and diagnostics from the passed model state.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary. Instead of data arrays, should
-            include numpy arrays that satisfy the input_properties of this
-            object.
-        timestep : timedelta
-            The time over which the model is being stepped.
-
-        Returns
-        -------
-        tendencies : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the time derivative of those
-            quantities in units/second at the time of the input state, as
-            numpy arrays.
-
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state, as numpy arrays.
-        """
+        self,
+        state: "NDArrayLikeDict",
+        timestep: "timedelta",
+        out_tendencies: "NDArrayLikeDict",
+        out_diagnostics: "NDArrayLikeDict",
+        overwrite_tendencies: Dict[str, bool],
+    ) -> None:
+        """TODO."""
         pass
 
     def _insert_tendency_properties(self) -> List[str]:
@@ -471,29 +543,7 @@ class ImplicitTendencyComponent(BaseComponent):
 
 
 class TendencyComponent(BaseComponent):
-    """
-    Attributes
-    ----------
-    input_properties : dict
-        A dictionary whose keys are quantities required in the state when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    tendency_properties : dict
-        A dictionary whose keys are quantities for which tendencies are returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    diagnostic_properties : dict
-        A dictionary whose keys are diagnostic quantities returned when the
-        object is called, and values are dictionaries which indicate 'dims' and
-        'units'.
-    tendencies_in_diagnostics : bool
-        A boolean indicating whether this object will put tendencies of
-        quantities in its diagnostic output based on first order time
-        differencing of output values.
-    name : string
-        A label to be used for this object, for example as would be used for
-        Y in the name "X_tendency_from_Y".
-    """
+    """TODO."""
 
     name = None
     uses_tracers = False
@@ -505,70 +555,12 @@ class TendencyComponent(BaseComponent):
         tendencies_in_diagnostics: bool = False,
         name: Optional[str] = None,
         *,
-        enable_checks: bool = False
+        enable_checks: bool = True
     ) -> None:
-        """
-        Initializes the Stepper object.
-
-        Args
-        ----
-        tendencies_in_diagnostics : bool, optional
-            A boolean indicating whether this object will put tendencies of
-            quantities in its diagnostic output.
-        name : string, optional
-            A label to be used for this object, for example as would be used for
-            Y in the name "X_tendency_from_Y". By default the class name in
-            lowercase is used.
-        """
+        """TODO."""
         super().__init__()
-
-        self._tendencies_in_diagnostics = tendencies_in_diagnostics
-        self.name = name or self.__class__.__name__
-        self._enable_checks = enable_checks
-
-        if enable_checks:
-            StaticComponentChecker.factory("input_properties").check(self)
-            StaticComponentChecker.factory("tendency_properties").check(self)
-            StaticComponentChecker.factory("diagnostic_properties").check(self)
-
-            self._input_checker = InflowComponentChecker.factory(
-                "input_properties", self
-            )
-            self._tendency_checker = OutflowComponentChecker.factory(
-                "tendency_properties", self
-            )
-            self._diagnostic_checker = OutflowComponentChecker.factory(
-                "diagnostic_properties", self
-            )
-
-        if tendencies_in_diagnostics:
-            self._added_diagnostic_names = self._insert_tendency_properties()
-            if enable_checks:
-                self._diagnostic_checker.ignored_diagnostics = (
-                    self._added_diagnostic_names
-                )
-        else:
-            self._added_diagnostic_names = []
-
-        if self.uses_tracers:
-            if self.tracer_dims is None:
-                raise ValueError(
-                    f"Component of type {self.__class__.__name__} must "
-                    f"specify tracer_dims property when uses_tracers=True."
-                )
-            prepend_tracers = getattr(self, "prepend_tracers", None)
-            self._tracer_packer = TracerPacker(
-                self, self.tracer_dims, prepend_tracers=prepend_tracers
-            )
-
-        self._input_operator = InflowComponentOperator.factory(
-            "input_properties", self
-        )
-        self._tendency_operator = OutflowComponentOperator.factory(
-            "tendency_properties", self
-        )
-        self._diagnostic_operator = OutflowComponentOperator.factory(
-            "diagnostic_properties", self
+        TendencyComponentUtils.init(
+            self, tendencies_in_diagnostics, name, enable_checks
         )
 
     def __str__(self) -> str:
@@ -596,122 +588,82 @@ class TendencyComponent(BaseComponent):
             return return_value
 
     def __call__(
-        self, state: "DataArrayDict"
+        self,
+        state: "DataArrayDict",
+        *,
+        out_tendencies: Optional["DataArrayDict"] = None,
+        out_diagnostics: Optional["DataArrayDict"] = None,
+        overwrite_tendencies: Optional[Dict[str, bool]] = None,
     ) -> Tuple["DataArrayDict", "DataArrayDict"]:
-        """
-        Gets tendencies and diagnostics from the passed model state.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary satisfying the input_properties of this
-            object.
-
-        Returns
-        -------
-        tendencies : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the time derivative of those
-            quantities in units/second at the time of the input state.
-
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state.
-
-        Raises
-        ------
-        KeyError
-            If a required quantity is missing from the state.
-        InvalidStateError
-            If state is not a valid input for the TendencyComponent instance.
-        """
-        # inflow checks
-        if self._enable_checks:
-            self._input_checker.check(state)
-
-        # extract raw state
-        raw_state = self._input_operator.get_ndarray_dict(state)
-        if self.uses_tracers:
-            raw_state["tracers"] = self._tracer_packer.pack(state)
-        raw_state["time"] = state["time"]
+        """TODO."""
+        # pre-processing
+        (
+            raw_state,
+            raw_tendencies,
+            raw_diagnostics,
+            overwrite_tendencies,
+        ) = TendencyComponentUtils.preprocessing(
+            self, state, out_tendencies, out_diagnostics, overwrite_tendencies
+        )
 
         # compute
-        raw_tendencies, raw_diagnostics = self.array_call(raw_state)
-
-        # process tracers
-        if self.uses_tracers:
-            out_tendencies = self._tracer_packer.unpack(
-                raw_tendencies.pop("tracers"),
-                state,
-                multiply_unit=self.tracer_tendency_time_unit,
-            )
-        else:
-            out_tendencies = {}
-
-        # outflow checks
-        if self._enable_checks:
-            self._tendency_checker.check(raw_tendencies, state)
-            self._diagnostic_checker.check(raw_diagnostics, state)
-
-        # wrap raw arrays into dataarrays
-        out_tendencies.update(
-            self._tendency_operator.get_dataarray_dict(raw_tendencies, state)
+        self.array_call(
+            raw_state, raw_tendencies, raw_diagnostics, overwrite_tendencies,
         )
-        diagnostics = self._diagnostic_operator.get_dataarray_dict(
-            raw_diagnostics, state
-        )
-        if self.tendencies_in_diagnostics:
-            self._insert_tendencies_to_diagnostics(out_tendencies, diagnostics)
 
-        return out_tendencies, diagnostics
+        # post-processing
+        tendencies, diagnostics = TendencyComponentUtils.postprocessing(
+            self,
+            state,
+            out_tendencies,
+            out_diagnostics,
+            raw_tendencies,
+            raw_diagnostics,
+        )
+
+        return tendencies, diagnostics
 
     @property
     def tendencies_in_diagnostics(self) -> bool:
+        """TODO."""
         return self._tendencies_in_diagnostics
 
     @property
     @abc.abstractmethod
     def input_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @property
     @abc.abstractmethod
     def tendency_properties(self) -> "PropertyDict":
+        """TODO."""
         pass
 
     @property
     @abc.abstractmethod
     def diagnostic_properties(self) -> "PropertyDict":
+        """TODO."""
+        pass
+
+    @abc.abstractmethod
+    def allocate_tendency(self, name) -> "NDArrayLike":
+        pass
+
+    @abc.abstractmethod
+    def allocate_diagnostic(self, name) -> "NDArrayLike":
+        """TODO."""
         pass
 
     @abc.abstractmethod
     def array_call(
-        self, state: "NDArrayLikeDict"
-    ) -> Tuple["NDArrayLikeDict", "NDArrayLikeDict"]:
-        """
-        Gets tendencies and diagnostics from the passed model state.
-
-        Args
-        ----
-        state : dict
-            A model state dictionary. Instead of data arrays, should
-            include numpy arrays that satisfy the input_properties of this
-            object.
-
-        Returns
-        -------
-        tendencies : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the time derivative of those
-            quantities in units/second at the time of the input state, as
-            numpy arrays.
-
-        diagnostics : dict
-            A dictionary whose keys are strings indicating
-            state quantities and values are the value of those quantities
-            at the time of the input state, as numpy arrays.
-        """
+        self,
+        state: "NDArrayLikeDict",
+        out_tendencies: "NDArrayLikeDict",
+        out_diagnostics: "NDArrayLikeDict",
+        overwrite_tendencies: Dict[str, bool],
+    ) -> None:
+        """TODO."""
         pass
 
     def _insert_tendency_properties(self) -> List[str]:
