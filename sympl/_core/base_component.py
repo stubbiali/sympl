@@ -51,43 +51,43 @@ class MetaComponent(abc.ABCMeta):
         mcs.mcs_registry.append(cls)
         return cls
 
-    def __instancecheck__(cls, instance):
-        if issubclass(instance.__class__, tuple(cls.mcs_registry)):
-            return True
-        else:
-            # checking if non-inheriting instance is a duck-type of a
-            # component base class
-            (
-                required_attributes,
-                disallowed_attributes,
-            ) = cls.__get_attribute_requirements()
-            has_attributes = all(
-                hasattr(instance, att) for att in required_attributes
-            ) and not any(
-                hasattr(instance, att) for att in disallowed_attributes
-            )
-            if hasattr(cls, "__call__") and not hasattr(instance, "__call__"):
-                return False
-            elif hasattr(cls, "__call__"):
-                timestep_in_class_call = (
-                    "timestep" in getargspec(cls.__call__).args
-                )
-                instance_argspec = getargspec(instance.__call__)
-                timestep_in_instance_call = "timestep" in instance_argspec.args
-                instance_defaults = get_kwarg_defaults(instance.__call__)
-                timestep_is_optional = (
-                    "timestep" in instance_defaults.keys()
-                    and instance_defaults["timestep"] is None
-                )
-                has_correct_spec = (
-                    timestep_in_class_call == timestep_in_instance_call
-                ) or timestep_is_optional
-            else:
-                raise RuntimeError(
-                    "Cannot check instance type on component subclass that has "
-                    "no __call__ method"
-                )
-            return has_attributes and has_correct_spec
+    # def __instancecheck__(cls, instance):
+    #     if issubclass(instance.__class__, tuple(cls.mcs_registry)):
+    #         return True
+    #     else:
+    #         # checking if non-inheriting instance is a duck-type of a
+    #         # component base class
+    #         (
+    #             required_attributes,
+    #             disallowed_attributes,
+    #         ) = cls.__get_attribute_requirements()
+    #         has_attributes = all(
+    #             hasattr(instance, att) for att in required_attributes
+    #         ) and not any(
+    #             hasattr(instance, att) for att in disallowed_attributes
+    #         )
+    #         if hasattr(cls, "__call__") and not hasattr(instance, "__call__"):
+    #             return False
+    #         elif hasattr(cls, "__call__"):
+    #             timestep_in_class_call = (
+    #                 "timestep" in getargspec(cls.__call__).args
+    #             )
+    #             instance_argspec = getargspec(instance.__call__)
+    #             timestep_in_instance_call = "timestep" in instance_argspec.args
+    #             instance_defaults = get_kwarg_defaults(instance.__call__)
+    #             timestep_is_optional = (
+    #                 "timestep" in instance_defaults.keys()
+    #                 and instance_defaults["timestep"] is None
+    #             )
+    #             has_correct_spec = (
+    #                 timestep_in_class_call == timestep_in_instance_call
+    #             ) or timestep_is_optional
+    #         else:
+    #             raise RuntimeError(
+    #                 "Cannot check instance type on component subclass that has "
+    #                 "no __call__ method"
+    #             )
+    #         return has_attributes and has_correct_spec
 
     def __get_attribute_requirements(cls):
         check_attributes = (
