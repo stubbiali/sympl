@@ -113,4 +113,4 @@ class MetaComponent(abc.ABCMeta):
 
 class BaseComponent(abc.ABC, metaclass=MetaComponent):
     def __init__(self):
-        self.__initialized = True
+        self._initialized = True
