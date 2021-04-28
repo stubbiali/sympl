@@ -30,12 +30,12 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
-from typing import Dict, Sequence, TYPE_CHECKING
+from typing import Callable, Dict, Optional, Sequence, TYPE_CHECKING
 
 from sympl._core.factory import AbstractFactory
 
 if TYPE_CHECKING:
-    from sympl._core.typingx import Component
+    from sympl._core.typingx import Component, PropertyDict
 
 
 class StaticComponentOperator(abc.ABC, AbstractFactory):
@@ -59,28 +59,51 @@ class StaticComponentOperator(abc.ABC, AbstractFactory):
         return out
 
     @classmethod
-    def get_dims(cls, component: "Component") -> Dict[str, Sequence[str]]:
+    @abc.abstractmethod
+    def get_allocator(cls, component: "Component") -> Optional[Callable]:
+        pass
+
+    @classmethod
+    def _get_dims(
+        cls, component: "Component", other_properties_name: str,
+    ) -> Dict[str, Sequence[str]]:
         """Get the specification of the dimensions for each field."""
-        properties = getattr(component, cls.properties_name, {})
-        input_properties = getattr(component, "input_properties", {})
+        properties = cls.get_properties(component)
+        other_properties = StaticComponentOperator.factory(
+            other_properties_name
+        ).get_properties(component)
 
         out = {}
         for name in properties:
             if "dims" in properties[name]:
                 out[name] = properties[name]["dims"]
-            elif (
-                "dims_like" in properties[name]
-                or "match_dims_like" in properties[name]
-            ):
-                field_like = properties[name].get(
-                    "dims_like", properties[name].get("match_dims_like", None),
-                )
+            elif "dims_like" in properties[name]:
+                field_like = properties[name]["dims_like"]
                 out[name] = (
                     properties[field_like]["dims"]
                     if field_like in properties
-                    else input_properties[field_like]["dims"]
+                    else other_properties[field_like]["dims"]
                 )
 
+        return out
+
+    @classmethod
+    def get_dims(cls, component: "Component",) -> Dict[str, Sequence[str]]:
+        return cls._get_dims(component, "input_properties")
+
+    @classmethod
+    def get_properties(cls, component: "Component") -> "PropertyDict":
+        return getattr(component, cls.properties_name, {})
+
+    @classmethod
+    def get_properties_with_dims(
+        cls, component: "Component"
+    ) -> "PropertyDict":
+        out = cls.get_properties(component).copy()
+        dims = cls.get_dims(component)
+        for name in dims:
+            if name in out:
+                out[name]["dims"] = dims[name]
         return out
 
 
@@ -88,17 +111,33 @@ class DiagnosticStaticComponentOperator(StaticComponentOperator):
     name = "diagnostic_properties"
     properties_name = "diagnostic_properties"
 
+    @classmethod
+    def get_allocator(cls, component: "Component") -> Optional[Callable]:
+        return getattr(component, "allocate_diagnostic", None)
+
 
 class InputStaticComponentOperator(StaticComponentOperator):
     name = "input_properties"
     properties_name = "input_properties"
+
+    @classmethod
+    def get_allocator(cls, component: "Component") -> Optional[Callable]:
+        return None
 
 
 class OutputStaticComponentOperator(StaticComponentOperator):
     name = "output_properties"
     properties_name = "output_properties"
 
+    @classmethod
+    def get_allocator(cls, component: "Component") -> Optional[Callable]:
+        return getattr(component, "allocate_output", None)
+
 
 class TendencyStaticComponentOperator(StaticComponentOperator):
     name = "tendency_properties"
     properties_name = "tendency_properties"
+
+    @classmethod
+    def get_allocator(cls, component: "Component") -> Optional[Callable]:
+        return getattr(component, "allocate_tendency", None)
