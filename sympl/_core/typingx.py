@@ -32,21 +32,18 @@
 from datetime import datetime
 from typing import Any, Dict, Sequence, TypeVar, Union
 
-from sympl._core.base_component import (
+from sympl._core.core_components import (
     DiagnosticComponent,
     ImplicitTendencyComponent,
+    TendencyComponent,
 )
-from sympl import Stepper, TendencyComponent, Monitor
 from sympl._core.data_array import DataArray
+from sympl._core.steppers import Stepper
 from sympl._core.time import datetime as sympl_datetime
 
 
 Component = Union[
-    DiagnosticComponent,
-    ImplicitTendencyComponent,
-    Monitor,
-    Stepper,
-    TendencyComponent,
+    DiagnosticComponent, ImplicitTendencyComponent, Stepper, TendencyComponent,
 ]
 DateTime = Union[datetime, sympl_datetime]
 DataArrayDict = Dict[str, Union[DateTime, DataArray]]
