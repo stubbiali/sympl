@@ -30,7 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Dict, List, Optional, Sequence, Set, TYPE_CHECKING
 
 from sympl._core.data_array import DataArray
 from sympl._core.factory import AbstractFactory
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
         ArrayDict,
         Component,
         DataArrayDict,
+        NDArrayLike,
         NDArrayLikeDict,
     )
 
@@ -60,14 +61,15 @@ class DynamicComponentOperator(abc.ABC):
 
     def get_dim_lengths(
         self, dataarray_dict: "DataArrayDict"
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Set[int]]:
         """Get the shape of the fields along each dimension."""
         out = {}
         for name in self.properties:
             field = self.get_field(name, dataarray_dict)
-            for idx, dim in enumerate(field.dims):
-                s = out.setdefault(dim, set())
-                s.add(field.shape[idx])
+            if field is not None:
+                for idx, dim in enumerate(field.dims):
+                    s = out.setdefault(dim, set())
+                    s.add(field.shape[idx])
         return out
 
     def get_field(
@@ -119,6 +121,40 @@ class DynamicComponentOperator(abc.ABC):
                 and dim not in self.properties[name]["dims"]
             ]
 
+    def get_target_field_dims(
+        self,
+        name,
+        dataarray_dict: "DataArrayDict",
+        input_dataarray_dict: Optional["DataArrayDict"] = None,
+    ) -> Sequence[str]:
+        """Get the target dimensions for a field."""
+        field_properties = self.properties.get(name, {})
+        if "dims_like" in field_properties:
+            name_like = field_properties["dims_like"]
+            return (
+                field_properties["dims"]
+                if name_like in self.properties
+                else self.input_properties[name_like]["dims"]
+            )
+        elif "dims" in field_properties:
+            if "*" in field_properties["dims"]:
+                wildcard_dims = self.get_wildcard_dims(
+                    name, dataarray_dict, input_dataarray_dict
+                )
+                out = []
+                for dim in field_properties["dims"]:
+                    if dim == "*":
+                        out += wildcard_dims
+                    else:
+                        out.append(dim)
+            else:
+                out = field_properties["dims"]
+            return out
+        else:
+            # virtually, we should never enter this branch...
+            field_like = self.get_field(name, input_dataarray_dict or {})
+            return field_like.dims if field_like is not None else []
+
     def get_target_dims(
         self,
         dataarray_dict: "DataArrayDict",
@@ -168,7 +204,8 @@ class InflowComponentOperator(DynamicComponentOperator, AbstractFactory):
         out = {}
         for name in self.properties:
             field = self.get_field(name, dataarray_dict)
-            out[name] = field.dims
+            if field is not None:
+                out[name] = field.dims
         return out
 
     def get_ndarray_dict(
@@ -177,6 +214,8 @@ class InflowComponentOperator(DynamicComponentOperator, AbstractFactory):
         """Extract the raw data from the DataArrays."""
         target_dims = self.get_target_dims(dataarray_dict)
         out = {}
+        if "time" in dataarray_dict:
+            out["time"] = dataarray_dict["time"]
         for name in self.properties:
             raw_name = (
                 self.properties[name]["alias"]
@@ -184,26 +223,61 @@ class InflowComponentOperator(DynamicComponentOperator, AbstractFactory):
                 else name
             )
             da = self.get_field(name, dataarray_dict)
-            if not all(d1 == d2 for d1, d2 in zip(da.dims, target_dims[name])):
-                da = da.transpose(*target_dims[name])
-            out[raw_name] = da.data
+            if da is not None:
+                if not all(
+                    d1 == d2 for d1, d2 in zip(da.dims, target_dims[name])
+                ):
+                    da = da.transpose(*target_dims[name])
+                out[raw_name] = da.data
         return out
 
 
-class InputDynamicComponentOperator(InflowComponentOperator):
+class InputComponentOperator(InflowComponentOperator):
     name = "input_properties"
     properties_name = "input_properties"
 
 
+class DiagnosticInflowComponentOperator(InflowComponentOperator):
+    name = "diagnostic_properties"
+    properties_name = "diagnostic_properties"
+
+
+class OutputInflowComponentOperator(InflowComponentOperator):
+    name = "output_properties"
+    properties_name = "output_properties"
+
+
+class TendencyInflowComponentOperator(InflowComponentOperator):
+    name = "tendency_properties"
+    properties_name = "tendency_properties"
+
+
 class OutflowComponentOperator(DynamicComponentOperator, AbstractFactory):
+    def get_dataarray(
+        self,
+        name: str,
+        ndarray: "NDArrayLike",
+        input_dataarray_dict: "DataArrayDict",
+    ) -> "DataArray":
+        """Wrap a raw array into a DataArray."""
+        target_dims = self.get_target_field_dims(name, input_dataarray_dict)
+        return DataArrayDict(
+            ndarray,
+            dims=target_dims,
+            attrs={"units": self.properties[name]["units"]},
+        )
+
     def get_dataarray_dict(
         self,
         ndarray_dict: "NDArrayLikeDict",
         input_dataarray_dict: "DataArrayDict",
+        out: Optional["DataArrayDict"] = None,
     ) -> "DataArrayDict":
         """Wrap raw arrays into DataArrays."""
         target_dims = self.get_target_dims(input_dataarray_dict)
-        out = {}
+        out = out if out is not None else {}
+        if "time" in ndarray_dict:
+            out["time"] = ndarray_dict["time"]
         for name in self.properties:
             raw_name = (
                 self.properties[name]["alias"]
@@ -211,24 +285,25 @@ class OutflowComponentOperator(DynamicComponentOperator, AbstractFactory):
                 else name
             )
             data = self.get_field(name, ndarray_dict)
-            out[raw_name] = DataArray(
-                data,
-                dims=target_dims[name],
-                attrs={"units": self.properties[name]["units"]},
-            )
+            if data is not None:
+                out[raw_name] = DataArray(
+                    data,
+                    dims=target_dims[name],
+                    attrs={"units": self.properties[name]["units"]},
+                )
         return out
 
 
-class DiagnosticComponentOperator(OutflowComponentOperator):
+class DiagnosticOutflowComponentOperator(OutflowComponentOperator):
     name = "diagnostic_properties"
     properties_name = "diagnostic_properties"
 
 
-class OutputComponentOperator(OutflowComponentOperator):
+class OutputOutflowComponentOperator(OutflowComponentOperator):
     name = "output_properties"
     properties_name = "output_properties"
 
 
-class TendencyComponentOperator(OutflowComponentOperator):
+class TendencyOutflowComponentOperator(OutflowComponentOperator):
     name = "tendency_properties"
     properties_name = "tendency_properties"
