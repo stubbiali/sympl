@@ -65,6 +65,27 @@ class DynamicComponentChecker(abc.ABC):
         )
         self.aliases = self.static_operator.get_aliases(component)
 
+    def check_extra_fields(self, array_dict: "ArrayDict") -> None:
+        """
+        Check if ``array_dict`` contains any key not present in
+        ``self.properties``.
+        """
+        for name in array_dict:
+            if (
+                name not in self.properties
+                and name not in self.aliases.values()
+            ):
+                raise InvalidArrayDictError(
+                    f"{self.component_name} computes {name} which is not "
+                    f"declared in {self.properties_name}."
+                )
+
+        if len(array_dict) > len(self.properties):
+            raise InvalidNDArrayLikeDictError(
+                f"{self.component_name} expects an array dict of length "
+                f"{len(self.properties)}, but got {len(array_dict)}."
+            )
+
     def check_missing_fields(self, array_dict: "ArrayDict"):
         """Check if ``array_dict`` contains all keys of ``self.properties``."""
         for name in self.properties:
@@ -96,19 +117,20 @@ class InflowComponentChecker(DynamicComponentChecker, AbstractFactory):
             dataarray_dict, input_dataarray_dict
         )
         for name in self.properties:
-            if any(
-                actual_dim not in target_dims[name]
-                for actual_dim in actual_dims[name]
-            ) or any(
-                target_dim not in actual_dims[name]
-                for target_dim in target_dims[name]
-            ):
-                raise InvalidDataArrayDictError(
-                    f"According to {self.properties_name} of "
-                    f"{self.component_name}, {name} should have dimensions "
-                    f"({', '.join(target_dims[name])}) but actually has "
-                    f"({', '.join(actual_dims[name])})."
-                )
+            if name in actual_dims and name in target_dims:
+                if any(
+                    actual_dim not in target_dims[name]
+                    for actual_dim in actual_dims[name]
+                ) or any(
+                    target_dim not in actual_dims[name]
+                    for target_dim in target_dims[name]
+                ):
+                    raise InvalidDataArrayDictError(
+                        f"According to {self.properties_name} of "
+                        f"{self.component_name}, {name} should have dimensions "
+                        f"({', '.join(target_dims[name])}) but actually has "
+                        f"({', '.join(actual_dims[name])})."
+                    )
 
     def check_dim_lengths(self, dataarray_dict: "DataArrayDict") -> None:
         """Check the shape of the DataArrays in ``dataarray_dict``."""
@@ -117,7 +139,7 @@ class InflowComponentChecker(DynamicComponentChecker, AbstractFactory):
             if len(lengths) != 1:
                 raise InvalidDataArrayDictError(
                     f"{self.component_name}: Dimension {dim} has multiple "
-                    f"lengths ({', '.join(lengths)})."
+                    f"lengths ({', '.join(str(el) for el in lengths)})."
                 )
 
     def check(
@@ -126,14 +148,37 @@ class InflowComponentChecker(DynamicComponentChecker, AbstractFactory):
         input_dataarray_dict: Optional["DataArrayDict"] = None,
     ) -> None:
         """Run all checks on ``dataarray_dict``."""
-        self.check_missing_fields(dataarray_dict)
         self.check_actual_dims(dataarray_dict, input_dataarray_dict)
         self.check_dim_lengths(dataarray_dict)
 
 
-class InputDynamicsComponentChecker(InflowComponentChecker):
+class InputComponentChecker(InflowComponentChecker):
     name = "input_properties"
     properties_name = "input_properties"
+
+    def check(
+        self,
+        dataarray_dict: "DataArrayDict",
+        input_dataarray_dict: Optional["DataArrayDict"] = None,
+    ) -> None:
+        """Run all checks on ``dataarray_dict``."""
+        self.check_missing_fields(dataarray_dict)
+        super().check(dataarray_dict)
+
+
+class DiagnosticInflowComponentChecker(InflowComponentChecker):
+    name = "diagnostic_properties"
+    properties_name = "diagnostic_properties"
+
+
+class OutputInflowComponentChecker(InflowComponentChecker):
+    name = "output_properties"
+    properties_name = "output_properties"
+
+
+class TendencyInflowComponentChecker(InflowComponentChecker):
+    name = "tendency_properties"
+    properties_name = "tendency_properties"
 
 
 class OutflowComponentChecker(DynamicComponentChecker, AbstractFactory):
@@ -142,27 +187,6 @@ class OutflowComponentChecker(DynamicComponentChecker, AbstractFactory):
         self.dynamic_operator = OutflowComponentOperator.factory(
             self.properties_name, component
         )
-
-    def check_extra_fields(self, ndarray_dict: "NDArrayLikeDict") -> None:
-        """
-        Check if ``ndarray_dict`` contains any key not present in
-        ``self.properties``.
-        """
-        for name in ndarray_dict:
-            if (
-                name not in self.properties
-                and name not in self.aliases.values()
-            ):
-                raise InvalidNDArrayLikeDictError(
-                    f"{self.component_name} computes {name} which is not "
-                    f"declared in {self.properties_name}."
-                )
-
-        if len(ndarray_dict) > len(self.properties):
-            raise InvalidNDArrayLikeDictError(
-                f"{self.component_name} expects an ndarray dict of length "
-                f"{len(self.properties)}, but got {len(ndarray_dict)}."
-            )
 
     def check_shape(
         self,
@@ -185,15 +209,19 @@ class OutflowComponentChecker(DynamicComponentChecker, AbstractFactory):
                     f"should be {len(target_dims[name])}-dimensional but "
                     f"it is {len(ndarray.shape)}-dimensional."
                 )
-            for idx, dim in enumerate(target_dims.keys()):
+            for idx, dim in enumerate(target_dims[name]):
                 if dim not in dim_lengths:
-                    dim_lengths[dim] = ndarray.shape[idx]
-                elif dim_lengths[dim] != ndarray.shape[idx]:
-                    raise InvalidNDArrayLikeDictError(
-                        f"The array for {name} output by {self.component_name} "
-                        f"should have shape {dim_lengths[dim]} along dimension "
-                        f"{dim} but it has shape {ndarray.shape[idx]}."
-                    )
+                    dim_lengths[dim] = {ndarray.shape[idx]}
+                else:
+                    target = dim_lengths[dim].pop()
+                    if target != ndarray.shape[idx]:
+                        raise InvalidNDArrayLikeDictError(
+                            f"The array for {name} output by "
+                            f"{self.component_name} should have shape "
+                            f"{target} along dimension {dim} but it has shape "
+                            f"{ndarray.shape[idx]}."
+                        )
+                    dim_lengths[dim].add(target)
 
     def check(
         self,
@@ -202,20 +230,20 @@ class OutflowComponentChecker(DynamicComponentChecker, AbstractFactory):
     ) -> None:
         """Run all checks on ``ndarray_dict``."""
         self.check_missing_fields(ndarray_dict)
-        self.check_extra_fields(ndarray_dict)
+        # self.check_extra_fields(ndarray_dict)
         self.check_shape(ndarray_dict, input_dataarray_dict)
 
 
-class DiagnosticDynamicComponentChecker(OutflowComponentChecker):
+class DiagnosticOutflowComponentChecker(OutflowComponentChecker):
     name = "diagnostic_properties"
     properties_name = "diagnostic_properties"
 
 
-class OutputDynamicComponentChecker(OutflowComponentChecker):
+class OutputOutflowComponentChecker(OutflowComponentChecker):
     name = "output_properties"
     properties_name = "output_properties"
 
 
-class TendencyDynamicComponentChecker(OutflowComponentChecker):
+class TendencyOutflowComponentChecker(OutflowComponentChecker):
     name = "tendency_properties"
     properties_name = "tendency_properties"
