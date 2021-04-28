@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 from sympl._core.exceptions import InvalidPropertyDictError
 from sympl._core.factory import AbstractFactory
+from sympl._core.static_operators import StaticComponentOperator
 from sympl._core.units import units_are_compatible
 
 if TYPE_CHECKING:
@@ -46,10 +47,10 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
     @classmethod
     def check_component_is_initialized(cls, component: "Component") -> None:
         """
-        Check if ``component`` has the attribute ``__initialized`` and if
+        Check if ``component`` has the attribute ``_initialized`` and if
         this is ``True``.
         """
-        init = getattr(component, "__initialized", False)
+        init = getattr(component, "_initialized", False)
         if not init:
             name = component.__class__.__name__
             raise RuntimeError(
@@ -89,14 +90,14 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties: "PropertyDict",
     ) -> None:
         """
         Check if each key-value pair of ``properties`` satisfies one of the
         following conditions:
 
             * value contains ``"units"``;
-            * key is found also in ``input_properties``.
+            * key is found also in ``other_properties``.
         """
         for field_name, field_properties in properties.items():
             if "units" not in field_properties:
@@ -107,7 +108,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
 
             if (
                 "dims" not in field_properties
-                and field_name not in input_properties
+                and field_name not in other_properties
             ):
                 raise InvalidPropertyDictError(
                     f"{component.__class__.__name__} does not define dims for "
@@ -124,22 +125,23 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties_name: str,
+        other_properties: "PropertyDict",
     ) -> None:
         """
-        If ``name`` is found both in ``properties`` and ``input_properties``,
+        If ``name`` is found both in ``properties`` and ``other_properties``,
         check if the units specified in the two dictionaries are compatible.
         """
         for name in properties:
-            if name in input_properties and not units_are_compatible(
+            if name in other_properties and not units_are_compatible(
                 properties[name]["units"],
-                cls.wrap_units(input_properties[name]["units"]),
+                cls.wrap_units(other_properties[name]["units"]),
             ):
                 raise InvalidPropertyDictError(
                     f"{component.__class__.__name__} specifies incompatible "
-                    f"units for {name}: "
-                    f"{input_properties[name]['units']} in input_properties "
-                    f"and {properties[name]['units']} in {cls.properties_name}."
+                    f"units for {name}: {other_properties[name]['units']} in "
+                    f"{other_properties_name} and "
+                    f"{properties[name]['units']} in {cls.properties_name}."
                 )
 
     @classmethod
@@ -147,7 +149,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties: "PropertyDict",
     ) -> None:
         """
         Check if each key-value pair of ``properties`` satisfies one of the
@@ -155,14 +157,14 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
 
             * value contains either ``"dims"``, ``"dims_like"`` or
                 ``"match_dims_like"``;
-            * key is found also in ``input_properties``.
+            * key is found also in ``other_properties``.
         """
         for field_name, field_properties in properties.items():
             if (
                 "dims" not in field_properties
                 and "dims_like" not in field_properties
                 and "match_dims_like" not in field_properties
-                and field_name not in input_properties
+                and field_name not in other_properties
             ):
                 raise InvalidPropertyDictError(
                     f"{component.__class__.__name__} does not define dims for "
@@ -174,7 +176,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties: "PropertyDict",
     ) -> None:
         """
         If the value ``val`` associated with the key ``name`` of ``properties``
@@ -182,7 +184,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
 
             * `val` does not contain ``"dims"``;
             * ``val["dims_like"]`` is found either in ``properties``
-                or ``input_properties``;
+                or ``other_properties``;
             * the value ``val_like`` associated with the key
                 ``val["dims_like"]`` contains ``"dims"``;
             * ``val_like["dims"]`` does not contain wildcard dimensions.
@@ -199,7 +201,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
                 field_like = field_properties["dims_like"]
                 if (
                     field_like not in properties
-                    and field_like not in input_properties
+                    and field_like not in other_properties
                 ):
                     raise InvalidPropertyDictError(
                         f"Cannot retrieve dims for {field_like} in "
@@ -207,7 +209,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
                     )
 
                 properties_like = properties.get(
-                    field_like, input_properties.get(field_like)
+                    field_like, other_properties.get(field_like)
                 )
                 if "dims" not in properties_like:
                     raise InvalidPropertyDictError(
@@ -227,7 +229,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties: "PropertyDict",
     ) -> None:
         """
         If the field ``"dims"`` of the value ``val`` associated with the key
@@ -235,14 +237,14 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
 
             * No more than one wildcard character is present;
             * Either ``val`` contains ``"match_dims_like"`` or ``name`` is
-                found also in ``input_properties``.
+                found also in ``other_properties``.
         """
         for name in properties:
             out = sum([dim == "*" for dim in properties[name].get("dims", [])])
             if out == 1:
                 if (
                     "match_dims_like" not in properties[name]
-                    and name not in input_properties
+                    and name not in other_properties
                 ):
                     raise InvalidPropertyDictError(
                         f"{component.__class__.__name__} cannot determine the "
@@ -261,7 +263,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties: "PropertyDict",
     ) -> None:
         """
         If the value ``val`` associated with the key ``name`` of ``properties``
@@ -270,7 +272,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
             * ``val`` contains ``"dims"``;
             * ``val["dims"]`` contains one wildcard character;
             * ``val["match_dims_like"]`` is either in ``properties`` or
-                ``input_properties``;
+                ``other_properties``;
             * the value ``val_like`` associated with the key
                 ``val["match_dims_like"]`` contains ``"dims"``;
             * ``val_like["dims"]`` contains a wildcard character at the same
@@ -298,8 +300,8 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
 
                 if field_like in properties:
                     dims_like = properties[field_like]["dims"]
-                elif field_like in input_properties:
-                    dims_like = input_properties[field_like]["dims"]
+                elif field_like in other_properties:
+                    dims_like = other_properties[field_like]["dims"]
                 else:
                     raise InvalidPropertyDictError(
                         f"Cannot retrieve dims for {field_like} in "
@@ -325,7 +327,8 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         cls,
         component: "Component",
         properties: "PropertyDict",
-        input_properties: "PropertyDict",
+        other_properties_name: str,
+        other_properties: "PropertyDict",
     ) -> None:
         """
         Two field names cannot map to the same alias, and any field name
@@ -334,9 +337,9 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         name_to_alias = {}
         alias_to_name = {}
 
-        for name in input_properties:
-            if "alias" in input_properties[name]:
-                alias = input_properties[name]["alias"]
+        for name in other_properties:
+            if "alias" in other_properties[name]:
+                alias = other_properties[name]["alias"]
                 name_to_alias[name] = alias
                 alias_to_name[alias] = name
 
@@ -348,8 +351,8 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
                 if name_to_alias[name] != new_alias:
                     raise InvalidPropertyDictError(
                         f"{component.__class__.__name__} specifies multiple "
-                        f"aliases for {name}: "
-                        f"{name_to_alias[name]} in input_properties and "
+                        f"aliases for {name}: {name_to_alias[name]} in "
+                        f"{other_properties_name} and "
                         f"{new_alias} in {cls.properties_name}."
                     )
 
@@ -357,30 +360,42 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
                 if name != new_name:
                     raise InvalidPropertyDictError(
                         f"{component.__class__.__name__} maps two quantities "
-                        f"to the same alias {new_alias}: "
-                        f"{new_name} in input_properties and "
+                        f"to the same alias {new_alias}: {new_name} in "
+                        f"{other_properties_name} and "
                         f"{name} in {cls.properties_name}."
                     )
 
     @classmethod
-    def check(cls, component: "Component") -> None:
+    def check(
+        cls,
+        component: "Component",
+        other_properties_name: str = "input_properties",
+    ) -> None:
         """Run all static checks on ``component``."""
         cls.check_component_is_initialized(component)
         cls.check_component_has_property(component)
 
-        properties = getattr(component, cls.properties_name)
+        properties = StaticComponentOperator.factory(
+            cls.properties_name
+        ).get_properties(component)
         cls.check_property_type(component, properties)
 
-        input_properties = getattr(component, "input_properties", {})
+        other_properties = StaticComponentOperator.factory(
+            other_properties_name
+        ).get_properties(component)
         cls.check_properties_have_units(
-            component, properties, input_properties
+            component, properties, other_properties
         )
-        cls.check_incompatible_units(component, properties, input_properties)
-        cls.check_properties_have_dims(component, properties, input_properties)
-        cls.check_dims_like(component, properties, input_properties)
-        cls.check_wildcard_dims(component, properties, input_properties)
-        cls.check_match_dims_like(component, properties, input_properties)
-        cls.check_aliases(component, properties, input_properties)
+        cls.check_incompatible_units(
+            component, properties, other_properties_name, other_properties
+        )
+        cls.check_properties_have_dims(component, properties, other_properties)
+        cls.check_dims_like(component, properties, other_properties)
+        cls.check_wildcard_dims(component, properties, other_properties)
+        cls.check_match_dims_like(component, properties, other_properties)
+        cls.check_aliases(
+            component, properties, other_properties_name, other_properties
+        )
 
 
 class DiagnosticStaticComponentChecker(StaticComponentChecker):
