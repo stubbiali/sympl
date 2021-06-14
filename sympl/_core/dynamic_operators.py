@@ -261,7 +261,7 @@ class OutflowComponentOperator(DynamicComponentOperator, AbstractFactory):
     ) -> "DataArray":
         """Wrap a raw array into a DataArray."""
         target_dims = self.get_target_field_dims(name, input_dataarray_dict)
-        return DataArrayDict(
+        return DataArray(
             ndarray,
             dims=target_dims,
             attrs={"units": self.properties[name]["units"]},
