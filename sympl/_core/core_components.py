@@ -125,26 +125,26 @@ class DiagnosticComponent(BaseComponent):
     ) -> "DataArrayDict":
         """TODO."""
         # inflow checks
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if self._enable_checks:
             self._input_checker.check(state)
-        Timer.stop()
+        # Timer.stop()
 
         # extract raw state
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         raw_state = self._input_operator.get_ndarray_dict(state)
         raw_state["time"] = state["time"]
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on out
-        Timer.start(label="check")
+        # Timer.start(label="check")
         out = out if out is not None else {}
         if self._enable_checks:
             self._diagnostic_inflow_checker.check(out, state)
-        Timer.stop()
+        # Timer.stop()
 
         # extract or allocate output buffers
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         raw_diagnostics = self._diagnostic_inflow_operator.get_ndarray_dict(
             out
         )
@@ -155,31 +155,31 @@ class DiagnosticComponent(BaseComponent):
                 if name not in out
             }
         )
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on raw_diagnostics
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if self._enable_checks:
             self._diagnostic_outflow_checker.check(raw_diagnostics, state)
-        Timer.stop()
+        # Timer.stop()
 
         # compute
-        Timer.start(label="array_call")
+        # Timer.start(label="array_call")
         self.array_call(raw_state, raw_diagnostics)
-        Timer.stop()
+        # Timer.stop()
 
         # outflow checks
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if self._enable_checks:
             self._diagnostic_outflow_checker.check(raw_diagnostics, state)
-        Timer.stop()
+        # Timer.stop()
 
         # wrap arrays in dataarrays
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         diagnostics = self._diagnostic_outflow_operator.get_dataarray_dict(
             raw_diagnostics, state, out=out
         )
-        Timer.stop()
+        # Timer.stop()
 
         return diagnostics
 
@@ -304,28 +304,28 @@ class TendencyComponentUtils:
         Dict[str, bool],
     ]:
         # inflow checks
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if component._enable_checks:
             component._input_checker.check(state)
-        Timer.stop()
+        # Timer.stop()
 
         # extract raw state
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         raw_state = component._input_operator.get_ndarray_dict(state)
         if component.uses_tracers:
             raw_state["tracers"] = component._tracer_packer.pack(state)
         raw_state["time"] = state["time"]
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on out_tendencies
-        Timer.start(label="check")
+        # Timer.start(label="check")
         out_tendencies = out_tendencies if out_tendencies is not None else {}
         if component._enable_checks:
             component._tendency_inflow_checker.check(out_tendencies, state)
-        Timer.stop()
+        # Timer.stop()
 
         # extract or allocate buffers for tendencies
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         raw_tendencies = component._tendency_inflow_operator.get_ndarray_dict(
             out_tendencies
         )
@@ -336,32 +336,32 @@ class TendencyComponentUtils:
                 if name not in out_tendencies
             }
         )
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on raw_tendencies
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if component._enable_checks:
             component._tendency_outflow_checker.check(raw_tendencies, state)
-        Timer.stop()
+        # Timer.stop()
 
         # set overwrite_tendencies
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         overwrite_tendencies = overwrite_tendencies or {}
         for name in component.tendency_properties:
             overwrite_tendencies.setdefault(name, True)
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on out
-        Timer.start(label="check")
+        # Timer.start(label="check")
         out_diagnostics = (
             out_diagnostics if out_diagnostics is not None else {}
         )
         if component._enable_checks:
             component._diagnostic_inflow_checker.check(out_diagnostics, state)
-        Timer.stop()
+        # Timer.stop()
 
         # extract or allocate output buffers
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         raw_diagnostics = component._diagnostic_inflow_operator.get_ndarray_dict(
             out_diagnostics
         )
@@ -372,13 +372,13 @@ class TendencyComponentUtils:
                 if name not in out_diagnostics
             }
         )
-        Timer.stop()
+        # Timer.stop()
 
         # run checks on raw_diagnostics
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if component._enable_checks:
             component._diagnostic_outflow_checker.check(raw_diagnostics, state)
-        Timer.stop()
+        # Timer.stop()
 
         return raw_state, raw_tendencies, raw_diagnostics, overwrite_tendencies
 
@@ -402,14 +402,14 @@ class TendencyComponentUtils:
         #     out_tendencies = {}
 
         # outflow checks
-        Timer.start(label="check")
+        # Timer.start(label="check")
         if component._enable_checks:
             component._tendency_outflow_checker.check(raw_tendencies, state)
             component._diagnostic_outflow_checker.check(raw_diagnostics, state)
-        Timer.stop()
+        # Timer.stop()
 
         # wrap arrays in dataarrays
-        Timer.start(label="operation")
+        # Timer.start(label="operation")
         tendencies = component._tendency_outflow_operator.get_dataarray_dict(
             raw_tendencies, state, out=out_tendencies
         )
@@ -421,7 +421,7 @@ class TendencyComponentUtils:
                 tendencies, diagnostics
             )
         component._last_update_time = state["time"]
-        Timer.stop()
+        # Timer.stop()
 
         return tendencies, diagnostics
 
@@ -492,7 +492,7 @@ class ImplicitTendencyComponent(BaseComponent):
         )
 
         # compute
-        Timer.start(label="array_call")
+        # Timer.start(label="array_call")
         self.array_call(
             raw_state,
             timestep,
@@ -500,7 +500,7 @@ class ImplicitTendencyComponent(BaseComponent):
             raw_diagnostics,
             overwrite_tendencies,
         )
-        Timer.stop()
+        # Timer.stop()
 
         # post-processing
         tendencies, diagnostics = TendencyComponentUtils.postprocessing(
@@ -650,11 +650,11 @@ class TendencyComponent(BaseComponent):
         )
 
         # compute
-        Timer.start(label="array_call")
+        # Timer.start(label="array_call")
         self.array_call(
             raw_state, raw_tendencies, raw_diagnostics, overwrite_tendencies,
         )
-        Timer.stop()
+        # Timer.stop()
 
         # post-processing
         tendencies, diagnostics = TendencyComponentUtils.postprocessing(
