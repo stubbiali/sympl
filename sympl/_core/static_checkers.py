@@ -372,7 +372,7 @@ class StaticComponentChecker(abc.ABC, AbstractFactory):
         other_properties_name: str = "input_properties",
     ) -> None:
         """Run all static checks on ``component``."""
-        cls.check_component_is_initialized(component)
+        # cls.check_component_is_initialized(component)
         cls.check_component_has_property(component)
 
         properties = StaticComponentOperator.factory(

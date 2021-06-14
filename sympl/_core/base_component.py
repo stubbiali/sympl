@@ -111,6 +111,6 @@ class MetaComponent(abc.ABCMeta):
         return required_attributes, disallowed_attributes
 
 
-class BaseComponent(abc.ABC, metaclass=MetaComponent):
+class BaseComponent(abc.ABC):  # , metaclass=MetaComponent):
     def __init__(self):
         self._initialized = True
