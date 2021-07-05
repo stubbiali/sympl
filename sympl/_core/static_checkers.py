@@ -413,6 +413,11 @@ class OutputStaticComponentChecker(StaticComponentChecker):
     properties_name = "output_properties"
 
 
+class ProvisionalInputStaticComponentChecker(StaticComponentChecker):
+    name = "provisional_input_properties"
+    properties_name = "provisional_input_properties"
+
+
 class TendencyStaticComponentChecker(StaticComponentChecker):
     name = "tendency_properties"
     properties_name = "tendency_properties"

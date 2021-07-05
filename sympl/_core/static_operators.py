@@ -30,6 +30,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import abc
+from copy import deepcopy
 from typing import Callable, Dict, Optional, Sequence, TYPE_CHECKING
 
 from sympl._core.factory import AbstractFactory
@@ -93,13 +94,13 @@ class StaticComponentOperator(abc.ABC, AbstractFactory):
 
     @classmethod
     def get_properties(cls, component: "Component") -> "PropertyDict":
-        return getattr(component, cls.properties_name, {})
+        return deepcopy(getattr(component, cls.properties_name, {}))
 
     @classmethod
     def get_properties_with_dims(
         cls, component: "Component"
     ) -> "PropertyDict":
-        out = cls.get_properties(component).copy()
+        out = cls.get_properties(component)
         dims = cls.get_dims(component)
         for name in dims:
             if name in out:

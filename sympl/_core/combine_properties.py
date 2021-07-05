@@ -29,6 +29,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from copy import deepcopy
 from typing import Iterable, List, Optional, TYPE_CHECKING
 
 from sympl._core.exceptions import InvalidPropertyDictError
@@ -131,7 +132,7 @@ def combine_properties(
     for property_dict in property_list:
         for name, properties in property_dict.items():
             if name not in return_dict:
-                return_dict[name] = properties.copy()
+                return_dict[name] = deepcopy(properties)
                 if "dims" not in properties:
                     if (
                         name in input_properties

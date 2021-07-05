@@ -538,3 +538,176 @@ class TendencyStepper(BaseComponent):
     ) -> None:
         """TODO."""
         pass
+
+
+class SequentialTendencyStepper(BaseComponent):
+    """TODO."""
+
+    time_unit_name = "s"
+    time_unit_timedelta = timedelta(seconds=1)
+
+    def __init__(
+        self,
+        tendency_component: Union[
+            "ImplicitTendencyComponent", "TendencyComponent"
+        ],
+        tendencies_in_diagnostics: bool = False,
+        name: Optional[str] = None,
+        *,
+        enable_checks: bool = True
+    ) -> None:
+        """TODO."""
+        super().__init__()
+
+        self.tendency_component = tendency_component
+        self._tendencies_in_diagnostics = tendencies_in_diagnostics
+        self.name = name or self.__class__.__name__
+        self._enable_checks = enable_checks
+
+        self.input_properties = StaticOperator.get_input_properties(self)
+        self.provisional_input_properties = StaticOperator.get_provisional_input_properties(
+            self
+        )
+        self.diagnostic_properties = StaticOperator.get_diagnostic_properties(
+            self
+        )
+        self.output_properties = StaticOperator.get_output_properties(self)
+
+        if enable_checks:
+            StaticComponentChecker.factory("input_properties").check(self)
+            StaticComponentChecker.factory(
+                "provisional_input_properties"
+            ).check(self)
+            StaticComponentChecker.factory("diagnostic_properties").check(self)
+            StaticComponentChecker.factory("output_properties").check(self)
+
+            self._input_checker = InflowComponentChecker.factory(
+                "input_properties", self
+            )
+            self._provisional_input_checker = InflowComponentChecker.factory(
+                "provisional_input_properties", self
+            )
+            self._diagnostic_checker = InflowComponentChecker.factory(
+                "diagnostic_properties", self
+            )
+            self._output_checker = InflowComponentChecker.factory(
+                "output_properties", self
+            )
+
+        self._stepper_operator = DynamicOperator(self)
+
+    def __str__(self) -> str:
+        return (
+            f"Instance of {self.__class__.__name__}(STSTendencyStepper)\n"
+            f"    inputs: {', '.join(self.input_properties.keys())}\n"
+            f"    provisional_inputs: "
+            f"{', '.join(self.provisional_input_properties.keys())}\n"
+            f"    outputs: {', '.join(self.output_properties.keys())}\n"
+            f"    diagnostics: {', '.join(self.diagnostic_properties.keys())}"
+        )
+
+    def __repr__(self) -> str:
+        if hasattr(self, "_making_repr") and self._making_repr:
+            return f"{self.__class__.__name__}(recursive reference)"
+        else:
+            self._making_repr = True
+            return_value = "{}({})".format(
+                self.__class__,
+                "\n".join(
+                    "{}: {}".format(repr(key), repr(value))
+                    for key, value in self.__dict__.items()
+                    if key != "_making_repr"
+                ),
+            )
+            self._making_repr = False
+            return return_value
+
+    def __call__(
+        self,
+        state: "DataArrayDict",
+        prv_state: "DataArrayDict",
+        timestep: timedelta,
+        *,
+        out_diagnostics: Optional["DataArrayDict"] = None,
+        out_state: Optional["DataArrayDict"] = None
+    ) -> Tuple["DataArrayDict", "DataArrayDict"]:
+        """
+        Gets diagnostics from the current model state and steps the state
+        forward in time according to the timestep.
+
+        Args
+        ----
+        state : dict
+            A model state dictionary satisfying the input_properties of this
+            object.
+        timestep : timedelta
+            The amount of time to step forward.
+
+        Returns
+        -------
+        diagnostics : dict
+            Diagnostics from the timestep of the input state.
+        new_state : dict
+            A dictionary whose keys are strings indicating
+            state quantities and values are the value of those quantities
+            at the timestep after input state.
+
+        Raises
+        ------
+        KeyError
+            If a required quantity is missing from the state.
+        InvalidStateError
+            If state is not a valid input for the Stepper instance
+            for other reasons.
+        """
+        if self._enable_checks:
+            self._input_checker.check(state)
+            self._provisional_input_checker.check(state)
+
+        out_diagnostics = (
+            out_diagnostics if out_diagnostics is not None else {}
+        )
+        out_state = out_state if out_state is not None else {}
+
+        if self._enable_checks:
+            self._diagnostic_checker.check(out_diagnostics, state)
+            self._output_checker.check(out_state, state)
+
+        out_diagnostics.update(
+            {
+                name: self._stepper_operator.allocate_diagnostic(name, state)
+                for name in self.diagnostic_properties
+                if name not in out_diagnostics
+            }
+        )
+        out_state.update(
+            {
+                name: self._stepper_operator.allocate_output(name, state)
+                for name in self.output_properties
+                if name not in out_state
+            }
+        )
+
+        self._call(state, prv_state, timestep, out_diagnostics, out_state)
+
+        if self._enable_checks:
+            self._diagnostic_checker.check(out_diagnostics, state)
+            self._output_checker.check(out_state, state)
+
+        return out_diagnostics, out_state
+
+    @property
+    def tendencies_in_diagnostics(self) -> bool:
+        return self._tendencies_in_diagnostics  # value cannot be modified
+
+    @abc.abstractmethod
+    def _call(
+        self,
+        state: "DataArrayDict",
+        prv_state: "DataArrayDict",
+        timestep: timedelta,
+        out_diagnostics: "DataArrayDict",
+        out_state: "DataArrayDict",
+    ) -> None:
+        """TODO."""
+        pass

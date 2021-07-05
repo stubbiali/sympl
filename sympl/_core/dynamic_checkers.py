@@ -171,6 +171,20 @@ class DiagnosticInflowComponentChecker(InflowComponentChecker):
     properties_name = "diagnostic_properties"
 
 
+class ProvisionalInputComponentChecker(InflowComponentChecker):
+    name = "provisional_input_properties"
+    properties_name = "provisional_input_properties"
+
+    def check(
+        self,
+        dataarray_dict: "DataArrayDict",
+        input_dataarray_dict: Optional["DataArrayDict"] = None,
+    ) -> None:
+        """Run all checks on ``dataarray_dict``."""
+        self.check_missing_fields(dataarray_dict)
+        super().check(dataarray_dict)
+
+
 class OutputInflowComponentChecker(InflowComponentChecker):
     name = "output_properties"
     properties_name = "output_properties"

@@ -29,7 +29,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from typing import Optional, TYPE_CHECKING, Tuple
+from typing import Optional, TYPE_CHECKING, Tuple, Union
 
 from sympl._core.dynamic_operators import OutflowComponentOperator
 from sympl._core.static_operators import StaticComponentOperator
@@ -38,7 +38,7 @@ from sympl._core.units import clean_units
 if TYPE_CHECKING:
     from datetime import timedelta
 
-    from sympl._core.steppers import TendencyStepper
+    from sympl._core.steppers import STSTendencyStepper, TendencyStepper
     from sympl._core.typingx import DataArray, DataArrayDict, PropertyDict
 
 
@@ -51,7 +51,7 @@ class StaticOperator:
 
     @classmethod
     def get_input_properties(
-        cls, stepper: "TendencyStepper"
+        cls, stepper: Union["STSTendencyStepper", "TendencyStepper"]
     ) -> "PropertyDict":
         out = {}
         out.update(
@@ -64,13 +64,22 @@ class StaticOperator:
         )
         for name in tc_tendency_properties:
             if name not in out:
-                out[name] = tc_tendency_properties[name].copy()
+                out[name] = tc_tendency_properties[name]
                 out[name]["units"] = clean_units(out[name]["units"] + " s")
         return out
 
     @classmethod
+    def get_provisional_input_properties(cls, stepper: "STSTendencyStepper"):
+        out = cls.tendency_operator.get_properties_with_dims(
+            stepper.tendency_component
+        )
+        for name in out:
+            out[name]["units"] = clean_units(out[name]["units"] + " s")
+        return out
+
+    @classmethod
     def get_diagnostic_properties(
-        cls, stepper: "TendencyStepper"
+        cls, stepper: Union["STSTendencyStepper", "TendencyStepper"]
     ) -> "PropertyDict":
         return cls.diagnostic_operator.get_properties_with_dims(
             stepper.tendency_component
@@ -78,14 +87,14 @@ class StaticOperator:
 
     @classmethod
     def get_output_properties(
-        cls, stepper: "TendencyStepper"
+        cls, stepper: Union["STSTendencyStepper", "TendencyStepper"]
     ) -> "PropertyDict":
         out = {}
         tc_tendency_properties = cls.tendency_operator.get_properties_with_dims(
             stepper.tendency_component
         )
         for name in tc_tendency_properties:
-            out[name] = tc_tendency_properties[name].copy()
+            out[name] = tc_tendency_properties[name]
             out[name]["units"] = clean_units(out[name]["units"] + " s")
         return out
 
@@ -93,7 +102,9 @@ class StaticOperator:
 class DynamicOperator:
     properties_name: str = None
 
-    def __init__(self, stepper: "TendencyStepper") -> None:
+    def __init__(
+        self, stepper: Union["STSTendencyStepper", "TendencyStepper"]
+    ) -> None:
         self.stepper = stepper
         self.sco_tendencies = StaticComponentOperator.factory(
             "tendency_properties"

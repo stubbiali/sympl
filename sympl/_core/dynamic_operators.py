@@ -247,6 +247,11 @@ class OutputInflowComponentOperator(InflowComponentOperator):
     properties_name = "output_properties"
 
 
+class ProvisionalInputComponentOperator(InflowComponentOperator):
+    name = "provisional_input_properties"
+    properties_name = "provisional_input_properties"
+
+
 class TendencyInflowComponentOperator(InflowComponentOperator):
     name = "tendency_properties"
     properties_name = "tendency_properties"
