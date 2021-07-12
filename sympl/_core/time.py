@@ -34,7 +34,6 @@ from datetime import datetime as real_datetime
 import functools
 import numpy as np
 import time
-import timeit
 from typing import Dict, List, Optional
 
 try:
@@ -57,8 +56,6 @@ except ImportError:
 
 try:
     import cupy as cp
-
-    # cp = None
 except ImportError:
     cp = None
 
@@ -187,7 +184,6 @@ class Timer:
                 cp.cuda.Device(0).synchronize()
             except RuntimeError:
                 pass
-        # cls.head.tic = timeit.default_timer()
         cls.head.tic = time.perf_counter()
 
     @classmethod
@@ -208,7 +204,6 @@ class Timer:
                 cp.cuda.Device(0).synchronize()
             except RuntimeError:
                 pass
-        # toc = timeit.default_timer()
         toc = time.perf_counter()
 
         # update statistics
