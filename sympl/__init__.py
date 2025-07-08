@@ -139,14 +139,7 @@ __all__ = (
     datetime,
 )
 
-from pkg_resources import DistributionNotFound, get_distribution
-
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    __version__ = "unknown"
-finally:
-    del get_distribution, DistributionNotFound
 
 __author__ = "Jeremy McGibbon"
 __license__ = "BSD"
+--version__ = "0.4.0"
