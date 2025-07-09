@@ -142,4 +142,4 @@ __all__ = (
 
 __author__ = "Jeremy McGibbon"
 __license__ = "BSD"
---version__ = "0.4.0"
+__version__ = "0.4.0"
